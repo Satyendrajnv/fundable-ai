@@ -1,67 +1,12 @@
 import { Router, Request, Response } from 'express';
-import { StartupEntitySchema } from '@fundable-ai/core-types';
+import { ExtractionPipeline } from '../pipeline/extraction.js';
 
 export const intelligenceRouter = Router();
 
+const pipeline = new ExtractionPipeline();
 const intelligenceStore = new Map<string, any>();
 
-// Seed ScoutEdge extracted intelligence (10 vectors)
-const scoutedgeIntelligence = {
-  intelligenceId: 'intel_scoutedge_v1',
-  startupId: 'scoutedge-001',
-  version: 1,
-  entities: {
-    problem: {
-      statement: 'VC analysts waste 40+ hours per investment memo manually reviewing ungrounded pitch decks.',
-      groundingEvidenceIds: ['doc_scoutedge_deck_01#page=2']
-    },
-    icp: {
-      statement: 'Early-stage venture capital firms ($10M-$150M AUM) and Seed accelerators.',
-      groundingEvidenceIds: ['doc_scoutedge_deck_01#page=3']
-    },
-    valueProposition: {
-      statement: 'Automated 10-vector pitch parsing and evidence-grounded investment memo synthesis.',
-      groundingEvidenceIds: ['doc_scoutedge_deck_01#page=1']
-    },
-    solution: {
-      statement: 'Serverless AI platform leveraging Vertex AI Gemini 2.x and Cloud Run.',
-      groundingEvidenceIds: ['doc_scoutedge_deck_01#page=4']
-    },
-    businessModel: {
-      statement: 'B2B SaaS subscription: $499/mo per analyst seat; $5k/mo accelerator tier.',
-      groundingEvidenceIds: ['doc_scoutedge_deck_01#page=5']
-    },
-    gtm: {
-      statement: 'Direct outbound sales to accelerator cohorts & VC network referral flywheel.',
-      groundingEvidenceIds: ['doc_scoutedge_deck_01#page=7']
-    },
-    traction: {
-      statement: '$12k ARR, 4 pilot accelerators, 150 parsed decks in initial beta cohort.',
-      groundingEvidenceIds: ['doc_scoutedge_fin_02#sheet=KPIs']
-    },
-    competition: {
-      statement: 'Generic presentation generators (Tome, Gamma) lack VC-grade evidence grounding and scoring.',
-      groundingEvidenceIds: ['doc_scoutedge_deck_01#page=8']
-    },
-    financials: {
-      burnRate: 15000,
-      runwayMonths: 10,
-      projectedARR: 250000,
-      groundingEvidenceIds: ['doc_scoutedge_fin_02#sheet=Summary']
-    },
-    fundraising: {
-      ask: '$1.5M Pre-Seed',
-      useOfFunds: '60% AI R&D, 25% GTM, 15% Operations',
-      groundingEvidenceIds: ['doc_scoutedge_deck_01#page=10']
-    }
-  },
-  extractionConfidence: 0.92,
-  createdAt: new Date().toISOString()
-};
-
-intelligenceStore.set('scoutedge-001', scoutedgeIntelligence);
-
-// GET /api/intelligence/:startupId — Get extracted 10-vector startup intelligence
+// GET /api/intelligence/:startupId
 intelligenceRouter.get('/:startupId', (req: Request, res: Response) => {
   const intel = intelligenceStore.get(req.params.startupId);
   if (!intel) {
@@ -70,12 +15,40 @@ intelligenceRouter.get('/:startupId', (req: Request, res: Response) => {
   res.status(200).json({ intelligence: intel });
 });
 
-// POST /api/intelligence/:startupId/extract — Trigger Stage 2 extraction
-intelligenceRouter.post('/:startupId/extract', (req: Request, res: Response) => {
-  res.status(202).json({
-    status: 'ACCEPTED',
-    message: 'Stage 2 Gemini Entity Extraction triggered',
-    jobId: `job_extract_${Date.now()}`,
-    startupId: req.params.startupId
-  });
+// POST /api/intelligence/:startupId/extract — Run Stage 2 Extraction
+intelligenceRouter.post('/:startupId/extract', async (req: Request, res: Response) => {
+  try {
+    const profile = {
+      startupId: req.params.startupId,
+      name: req.body.name || 'ScoutEdge',
+      tagline: req.body.tagline || 'Autonomous AI Pitch Intelligence',
+      founderId: 'founder_demo',
+      stage: req.body.stage || 'Pre-Seed',
+      targetRaise: req.body.targetRaise || 1500000,
+      currency: 'USD',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+
+    const evidence = [
+      {
+        evidenceId: 'doc_01',
+        startupId: req.params.startupId,
+        fileName: 'ScoutEdge_Pitch_Deck_Draft.pdf',
+        fileType: 'pdf' as const,
+        gcsPath: `gs://fundable-ai-documents-dev/${req.params.startupId}/ScoutEdge_Pitch_Deck_Draft.pdf`,
+        fileSizeBytes: 2450000,
+        uploadedAt: new Date().toISOString(),
+        processedStatus: 'COMPLETED' as const,
+        extractedSnippetsCount: 14
+      }
+    ];
+
+    const intelligence = await pipeline.run(profile, evidence);
+    intelligenceStore.set(req.params.startupId, intelligence);
+
+    res.status(200).json({ status: 'COMPLETED', intelligence });
+  } catch (err: any) {
+    res.status(500).json({ error: 'Extraction failed', message: err.message });
+  }
 });
