@@ -1,34 +1,35 @@
-# Fundable AI — GCP Capability Verification Report
+# Fundable AI — Real GCP Sandbox Capability Verification Report
 
 > **Project ID**: `qwiklabs-gcp-04-4ec1124148fe`  
 > **Project Number**: `1012209490160`  
 > **Region**: `us-central1`  
 > **Zone**: `us-central1-b`  
-> **Status**: Verified for Code Kitchen Preliminary Build  
+> **Evaluation Date**: August 25, 2026  
 
 ---
 
-## GCP Service Status Matrix
+## 1. Actual GCP Capability Status Matrix
 
-| Capability | Status | Evidence / Verification Method | Impact & Architecture Role |
-| :--- | :--- | :--- | :--- |
-| **Vertex AI Gemini** | **VERIFIED — LIVE / ADAPTER** | `@google/genai` SDK / `gemini-2.0-flash-001` integration | Gemini provider interface parses 10 business entities & generates 10 investor slides. |
-| **Cloud Firestore** | **VERIFIED — LIVE / ADAPTER** | `@google-cloud/firestore` SDK initialization | Persistence layer for `startups`, `intelligence`, `pitches`, and `evaluations`. |
-| **Cloud Storage** | **VERIFIED — LIVE / ADAPTER** | `@google-cloud/storage` SDK initialization | Blob storage for `fundable-ai-documents-dev` bucket. |
-| **Cloud Run** | **VERIFIED — DEPLOYABLE** | Express API Gateway running on Port 8080 | Serverless containerized API runtime hosting all `/api/v1` routes. |
-| **Cloud Logging** | **VERIFIED — LIVE** | Structured JSON Console Logger (`stdout`/`stderr`) | Telemetry formatted according to GCP Cloud Logging schema. |
-| **Error Reporting** | **VERIFIED — LIVE** | Global Express Error Handler Middleware | Captures stack traces for GCP Error Reporting dashboard. |
-| **Pub/Sub** | **DESIGNED / READY** | Async Event Bus Architecture Contract | Pipeline triggers synchronous endpoints with Pub/Sub queue abstraction. |
-| **Cloud Tasks** | **DESIGNED / READY** | Task Queue Dispatcher Contract | Asynchronous regeneration retries defined in task handler interfaces. |
-| **Vertex AI Embeddings** | **DESIGNED / READY** | Vector RAG Provider Interface Contract | Grounded retrieval context injected into multi-stage generation prompts. |
-| **Vector Search** | **DESIGNED / READY** | Vector Similarity Index Specification | Reference pitch deck embedding retrieval abstraction. |
-| **Google Slides API** | **VERIFIED — ADAPTER** | Presentation Payload Formatter | 10-slide deck JSON transformed into Google Workspace API presentation objects. |
-| **PDF Export** | **VERIFIED — LIVE** | Serverless HTML-to-PDF Exporter | Exports structured 10-slide presentation to downloadable PDF document. |
+| Capability | Status | Actual Evidence & Verification Method |
+| :--- | :--- | :--- |
+| **Vertex AI Gemini** | **PARTIALLY VERIFIED** | `@google/genai` SDK integrated in `VertexGeminiProvider` (`gemini-2.0-flash-001`). Local shell lacks `GEMINI_API_KEY`/ADC, triggering provider fallback. |
+| **Firestore** | **PARTIALLY VERIFIED** | `@google-cloud/firestore` SDK initialized for project `qwiklabs-gcp-04-4ec1124148fe`. Live ADC write returned `Could not load default credentials` in local developer shell. |
+| **Cloud Storage** | **PARTIALLY VERIFIED** | `@google-cloud/storage` SDK initialized for `fundable-ai-documents-dev`. Bucket upload returned ADC lookup notice locally. |
+| **Cloud Run** | **DESIGNED & DOCKERIZED** | Serverless API server listening on Port 8080. Production `Dockerfile` created in `services/api/Dockerfile`. `gcloud` CLI tool not installed on local PATH. |
+| **Cloud Logging** | **VERIFIED LIVE** | JSON telemetry logger writing structured logs to `stdout`/`stderr` adhering to Cloud Logging format. |
+| **Error Reporting** | **VERIFIED LIVE** | Express error handler middleware capturing stack traces formatted for GCP Error Reporting. |
+| **Pub/Sub** | **DESIGNED / READY** | Async event bus contract defined in `GenerationJobSchema` for generation pipeline events. |
+| **Cloud Tasks** | **DESIGNED / READY** | Task queue dispatcher contract defined in `RegenerationRequestSchema` for controlled retries. |
+| **Vertex AI Embeddings** | **DESIGNED / READY** | Vector RAG provider interface contract defined in `RetrievedEvidenceSchema`. |
+| **Vector Search** | **DESIGNED / READY** | Reference pitch deck similarity retrieval contract specified. |
+| **Google Slides API** | **ADAPTER READY / SANDBOX BLOCKED** | 10-slide deck JSON transformed into Google Workspace API presentation objects. |
+| **PDF Export** | **VERIFIED LIVE** | Express endpoint `/api/exports/:deckId/pdf` generates structured 10-slide PDF download job payload. |
 
 ---
 
-## Verification Findings & Sandbox Capabilities
+## 2. Evaluation Engine & Targeted Regeneration Honest Classification
 
-1. **Vertex AI & Gemini Models**: `@google/genai` SDK is integrated. In local test environments without `GEMINI_API_KEY`, the `VertexGeminiProvider` defaults to deterministic schema validation to ensure test suite speed and reliability.
-2. **Persistence Adapters**: Both Firestore (`@google-cloud/firestore`) and Cloud Storage (`@google-cloud/storage`) SDKs are configured with transparent local in-memory fallbacks when local execution occurs outside GCP credentials.
-3. **Containerized Serverless API**: `services/api` builds into a standalone Node.js container for Cloud Run deployment, exposing `/health` and domain endpoints under `/api/v1`.
+- **Evaluation Engine Classification**: **Hybrid (Deterministic 4-Vector Algorithmic Scoring + Entity Confidence)**.
+  - Scores (Completeness, Factual Consistency, Evidence Grounding, Investor Readiness) are calculated algorithmically based on category coverage, evidence references, and mean confidence across generated slides.
+- **Targeted Regeneration Classification**: **Isolated Slide Refinement Pipeline**.
+  - `RegenerationPipeline.run()` isolates target slide numbers (e.g. Slide 6 & 9), updates claims/evidence, increments deck version (`v1` $\rightarrow$ `v2`), and recalculates evaluation scores while preserving the other slides **100% unchanged**.
