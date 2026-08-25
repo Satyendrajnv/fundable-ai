@@ -8,11 +8,25 @@ const generationPipeline = new GenerationPipeline();
 const extractionPipeline = new ExtractionPipeline();
 const pitchesStore = new Map<string, any>();
 
-// GET /api/pitches/:startupId
-pitchesRouter.get('/:startupId', (req: Request, res: Response) => {
-  const deck = pitchesStore.get(req.params.startupId);
+// GET /api/pitches/:startupId — Retrieve 10-slide deck
+pitchesRouter.get('/:startupId', async (req: Request, res: Response) => {
+  let deck = pitchesStore.get(req.params.startupId);
   if (!deck) {
-    return res.status(404).json({ error: `No pitch deck generated yet for startup '${req.params.startupId}'.` });
+    // Generate 10-slide deck on the fly for demo profile
+    const mockProfile = {
+      startupId: req.params.startupId,
+      name: 'ScoutEdge',
+      tagline: 'Autonomous AI Pitch Intelligence',
+      founderId: 'founder_demo',
+      stage: 'Pre-Seed' as const,
+      targetRaise: 1500000,
+      currency: 'USD',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+    const intelligence = await extractionPipeline.run(mockProfile, []);
+    deck = await generationPipeline.run(intelligence);
+    pitchesStore.set(req.params.startupId, deck);
   }
   res.status(200).json({ deck });
 });

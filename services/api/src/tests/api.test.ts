@@ -1,4 +1,4 @@
-import { test, describe } from 'node:test';
+import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert';
 import http from 'node:http';
 import { app } from '../app.js';
@@ -103,9 +103,10 @@ describe('Fundable AI API Shell & Endpoint Validation Suite', () => {
     };
 
     const res = await executeRequest('POST', '/api/evaluations/deck_scoutedge_v1/regenerate-slide', regenPayload);
-    assert.strictEqual(res.status, 202);
-    assert.strictEqual(res.body.status, 'ACCEPTED');
-    assert.deepStrictEqual(res.body.request.targetSlideNumbers, [6, 9]);
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(res.body.status, 'COMPLETED');
+    assert.ok(res.body.updatedDeck);
+    assert.ok(res.body.newEvaluation);
   });
 
   test('POST /api/exports/deck_scoutedge_v1/pdf generates PDF export job', async () => {

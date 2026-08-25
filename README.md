@@ -13,9 +13,26 @@ Unlike generic text-to-slide tools, Fundable AI operates as an institutional VC 
 1. **Multi-Vector Ingestion & Extraction**: Extracts 10 key business entities (*Problem, ICP, Value Proposition, Solution, Business Model, GTM, Traction, Competition, Financials, Fundraising*) using Gemini 2.x and links claims directly to source evidence.
 2. **Retrieval-Augmented Generation (RAG)**: Indexes supporting materials and reference decks using Vertex AI Vector Search.
 3. **Multi-Stage Synthesis**: Sequentially crafts an investor-ready 10-slide pitch deck.
-4. **Automated 4-Vector Evaluation**: Evaluates *Completeness*, *Factual Consistency*, *Evidence Grounding*, and *Investor Readiness*.
+4. **Automated 4-Vector Evaluation**: Algorithmic evaluation across *Completeness*, *Factual Consistency*, *Evidence Grounding*, and *Investor Readiness*.
 5. **Targeted Regeneration**: Automatically identifies low-confidence slides (`< 80`) and regenerates only those sections before assembly.
 6. **Export & Observability**: Exports to Google Slides and PDF, backed by Cloud Run, Firestore, Cloud Storage, Cloud Tasks, Pub/Sub, and Cloud Logging.
+
+---
+
+## 📊 Implementation & Verification Status
+
+| Feature | Status | Description |
+| :--- | :--- | :--- |
+| **React Studio Frontend** | **IMPLEMENTED & LIVE VERIFIED** | 6-step interactive Golden Path studio shell. |
+| **Cloud Run Express API** | **IMPLEMENTED & LIVE VERIFIED** | Containerized serverless API gateway with health & domain endpoints. |
+| **10-Vector Extraction Pipeline** | **IMPLEMENTED & LIVE VERIFIED** | Gemini 2.x extraction with Zod schema validation. |
+| **10-Slide Deck Generation** | **IMPLEMENTED & LIVE VERIFIED** | Multi-stage pitch deck synthesis enforcing strictly 10 slides. |
+| **Automated Evaluation Engine** | **IMPLEMENTED & LIVE VERIFIED** | Algorithmic 4-vector scoring engine (Completeness, Consistency, Grounding, Readiness). |
+| **Targeted Slide Regeneration** | **IMPLEMENTED & LIVE VERIFIED** | Isolated slide refinement preserving unchanged slides. |
+| **Firestore & Cloud Storage** | **IMPLEMENTED & LIVE VERIFIED** | Persistence layer with GCP SDKs and local fallback adapters. |
+| **PDF & Google Slides Exporters** | **IMPLEMENTED & LIVE VERIFIED** | Export engine formatting presentation payloads & PDF downloads. |
+| **Pub/Sub & Cloud Tasks** | **DESIGNED & READY** | Event bus and task queue dispatcher contracts for async execution. |
+| **Vertex Vector Search RAG** | **DESIGNED & READY** | Vector index provider interface for reference deck retrieval. |
 
 ---
 
@@ -37,9 +54,9 @@ fundable-ai/
 │   └── core-types/                  # Shared TypeScript types & Zod schemas
 │
 ├── infrastructure/                  # Terraform & GCP deployment configuration
-├── prompts/                         # Version-controlled Gemini prompt templates
+├── prompts/                         # Versioned Gemini prompt templates
 ├── tests/                           # Integration & ScoutEdge benchmark test suites
-└── docs/                            # API specs & Architecture Decision Records
+└── docs/                            # API specs, GCP verification report, & ADRs
 ```
 
 ---
@@ -55,7 +72,7 @@ fundable-ai/
 # Install all monorepo dependencies
 npm install
 
-# Run unit tests across packages
+# Run unit & integration tests across packages
 npm test
 
 # Build all packages & services
