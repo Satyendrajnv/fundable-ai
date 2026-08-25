@@ -1,0 +1,20 @@
+{
+  "name": "fundable-ai-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Fundable AI Monorepo - Cloud-Native AI Pitch Intelligence Platform",
+  "workspaces": [
+    "packages/*",
+    "services/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "lint": "echo 'No linter configured yet'"
+  },
+  "devDependencies": {
+    "@types/node": "^26.3.0",
+    "typescript": "^5.4.5"
+  }
+}
