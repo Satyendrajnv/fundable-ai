@@ -1,7 +1,3 @@
-Yes. I’d make this the **single canonical README**: comprehensive enough for judges, engineers, contributors, and future maintainers, while staying honest about what is live versus adapter/roadmap. The source material explicitly emphasizes those four goals and the central pipeline positioning. 
-
-Below is the **complete `README.md`** ready to paste into the repository.
-
 ````markdown
 # Fundable AI
 
