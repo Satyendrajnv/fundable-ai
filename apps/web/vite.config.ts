@@ -7,8 +7,9 @@ export default defineConfig({
     port: 3000,
     proxy: {
       '/api': {
-        target: 'http://localhost:8080',
-        changeOrigin: true
+        target: 'https://fundable-ai-api-1012209490160.us-central1.run.app',
+        changeOrigin: true,
+        secure: true
       }
     }
   }
