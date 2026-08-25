@@ -1346,7 +1346,7 @@ Fundable AI intentionally documents its current technical maturity.
 | REST API                          | **Live**                          |
 | Firestore integration             | **Live / deployed**               |
 | Cloud Storage integration         | **Live / deployed**               |
-| PDF export                        | **Implemented / verified**        |
+| PDF export                        | **Live / binary PDF document**    |
 | 10-vector intelligence model      | **Implemented**                   |
 | 10-slide pitch contract           | **Implemented**                   |
 | Deterministic evaluation engine   | **Implemented**                   |

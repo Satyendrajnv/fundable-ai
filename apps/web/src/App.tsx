@@ -118,6 +118,22 @@ export function App() {
         </div>
       </header>
 
+      {/* AI Provider Status Banner */}
+      <div style={{ margin: '16px 0', padding: '12px 16px', background: 'rgba(237, 137, 54, 0.12)', border: '1px solid rgba(237, 137, 54, 0.4)', borderRadius: '8px', fontSize: '0.85rem' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+          <div>
+            <strong style={{ color: 'var(--warning)' }}>AI PROVIDER STATUS:</strong> Vertex AI / Gemini 2.x &nbsp;|&nbsp;
+            <strong>STATUS:</strong> <span style={{ color: 'var(--warning)' }}>SANDBOX CONSTRAINED</span> &nbsp;|&nbsp;
+            <strong>EXECUTION:</strong> DETERMINISTIC FALLBACK &nbsp;|&nbsp;
+            <strong>CONTRACT:</strong> GeminiProvider-compatible
+          </div>
+          <span className="tag tag-warning">Provider Abstraction Active</span>
+        </div>
+        <p style={{ marginTop: '6px', fontSize: '0.78rem', color: 'var(--text-muted)', margin: '4px 0 0 0' }}>
+          Current competition deployment uses a deterministic provider fallback because live Vertex AI execution is restricted by the temporary sandbox environment. The application maintains a provider boundary for Vertex AI/Gemini execution.
+        </p>
+      </div>
+
       {/* Golden Path Step Navigation */}
       <nav className="golden-path-nav">
         <button className={`step-btn ${activeStep === 'PROFILE' ? 'active' : ''}`} onClick={() => setActiveStep('PROFILE')}>
@@ -177,7 +193,7 @@ export function App() {
           </div>
           <div style={{ marginTop: '24px', textAlign: 'right' }}>
             <button className="btn-primary" onClick={handleExtractIntelligence}>
-              Run Gemini 2.x Extraction &rarr;
+              Run 10-Vector Extraction &rarr;
             </button>
           </div>
         </main>
@@ -187,7 +203,7 @@ export function App() {
       {!loading && activeStep === 'EXTRACTION' && (
         <main className="card">
           <div className="card-title">
-            <span>Gemini 2.x Extracted Startup Intelligence (10 Vectors)</span>
+            <span>Extracted Startup Intelligence (10 Business Vectors)</span>
             <span className="tag tag-success">Stage 2 &amp; 3 Complete</span>
           </div>
           <div className="grid-2">
@@ -219,7 +235,7 @@ export function App() {
             <span className="tag tag-success">Enforces Exactly 10 Slides</span>
           </div>
           <p style={{ color: 'var(--text-muted)', marginBottom: '16px' }}>
-            Multi-stage reasoning sequentially generated 10 grounded investor slides with speaker notes.
+            Structured pipeline sequentially generated 10 grounded investor slides with speaker notes.
           </p>
           <div className="grid-3">
             {pitchDeck?.slides ? pitchDeck.slides.map((slide: any) => (
@@ -314,27 +330,27 @@ export function App() {
         <main className="card">
           <div className="card-title">
             <span>Stage 9 — Export Final Presentation</span>
-            <span className="tag tag-success">Google Cloud Serverless Export</span>
+            <span className="tag tag-success">Serverless PDF &amp; Adapter Export</span>
           </div>
           <p style={{ color: 'var(--text-muted)', marginBottom: '16px' }}>
-            Export your evidence-grounded 10-slide presentation directly to Google Slides or high-res PDF.
+            Export your evidence-grounded 10-slide presentation directly to binary PDF or Google Slides adapter preview.
           </p>
           <div className="grid-2">
             <div className="slide-card" style={{ textAlign: 'center', padding: '32px' }}>
-              <h3>Google Slides Export</h3>
+              <h3>Google Slides Export (Adapter)</h3>
               <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', margin: '12px 0' }}>
-                Generates a live editable presentation deck via Google Workspace API.
+                Google Slides API adapter contract payload preview.
               </p>
-              <button className="btn-primary" onClick={() => alert('Exporting to Google Slides API...')}>
-                Export to Google Slides 📊
+              <button className="btn-primary" onClick={() => window.open('https://docs.google.com/presentation/d/demo_scoutedge-001/edit', '_blank')}>
+                Preview Google Slides Payload 📊
               </button>
             </div>
             <div className="slide-card" style={{ textAlign: 'center', padding: '32px' }}>
               <h3>Download PDF Presentation</h3>
               <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', margin: '12px 0' }}>
-                Serverless HTML-to-PDF compilation saved to Cloud Storage.
+                Generates a 10-page binary PDF document containing all slide details, speaker notes, and verified evidence references.
               </p>
-              <button className="btn-primary" onClick={() => alert('Downloading PDF from Cloud Storage...')}>
+              <button className="btn-primary" onClick={() => window.open('/api/exports/deck_scoutedge_v1/pdf/download', '_blank')}>
                 Download PDF Document 📄
               </button>
             </div>

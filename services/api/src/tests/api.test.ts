@@ -113,7 +113,25 @@ describe('Fundable AI API Shell & Endpoint Validation Suite', () => {
     const res = await executeRequest('POST', '/api/exports/deck_scoutedge_v1/pdf');
     assert.strictEqual(res.status, 200);
     assert.strictEqual(res.body.exportJob.format, 'PDF');
-    assert.ok(res.body.exportJob.downloadUrl.endsWith('.pdf'));
+    assert.ok(res.body.exportJob.downloadUrl.includes('/pdf/download'));
+  });
+
+  test('GET /api/exports/deck_scoutedge_v1/pdf/download serves binary PDF document', async () => {
+    const server = http.createServer(app);
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', () => resolve()));
+    const addr = server.address() as { port: number };
+    const url = `http://127.0.0.1:${addr.port}/api/exports/deck_scoutedge_v1/pdf/download`;
+
+    const res = await fetch(url);
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(res.headers.get('content-type'), 'application/pdf');
+    const buf = await res.arrayBuffer();
+    assert.ok(buf.byteLength > 1000, 'PDF size must be > 1000 bytes');
+
+    // Verify PDF header magic bytes "%PDF-"
+    const headerStr = Buffer.from(buf.slice(0, 5)).toString('utf-8');
+    assert.strictEqual(headerStr, '%PDF-');
+    server.close();
   });
 
   test('POST /api/exports/deck_scoutedge_v1/slides generates Google Slides export job', async () => {
