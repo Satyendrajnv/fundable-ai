@@ -1818,8 +1818,3 @@ The next generation of Fundable AI can activate live Gemini execution, retrieval
 ### From founder information to investor intelligence.
 
 **Extract → Ground → Generate → Evaluate → Regenerate → Export**
-
-```
-
-This version incorporates the full source material rather than merely shortening it, including the architecture, ten-vector model, ten-slide contract, evaluation engine, provider boundary, live deployment, API surface, repository structure, security posture, capability matrix, roadmap, and Code Kitchen positioning. The source itself identifies the same core identity—**“Extract → Ground → Generate → Evaluate → Regenerate → Export”**—as the strongest technical positioning. :contentReference[oaicite:1]{index=1}
-```
