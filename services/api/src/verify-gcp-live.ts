@@ -1,13 +1,24 @@
 import { Firestore } from '@google-cloud/firestore';
 import { Storage } from '@google-cloud/storage';
 import path from 'node:path';
+import fs from 'node:fs';
 
-const saPath = path.resolve(process.cwd(), 'services/api/service-account.json');
-process.env.GOOGLE_APPLICATION_CREDENTIALS = saPath;
-const PROJECT_ID = 'qwiklabs-gcp-04-4ec1124148fe';
+const PROJECT_ID = process.env.GCP_PROJECT_ID || 'qwiklabs-gcp-04-4ec1124148fe';
+
+function getCredentialsPath(): string | undefined {
+  if (process.env.GOOGLE_APPLICATION_CREDENTIALS && fs.existsSync(process.env.GOOGLE_APPLICATION_CREDENTIALS)) {
+    return process.env.GOOGLE_APPLICATION_CREDENTIALS;
+  }
+  const defaultLocalSa = path.resolve(process.cwd(), 'services/api/service-account.json');
+  if (fs.existsSync(defaultLocalSa)) {
+    return defaultLocalSa;
+  }
+  return undefined;
+}
 
 async function main() {
-  console.log(`Using Service Account credentials at: ${saPath}`);
+  const saPath = getCredentialsPath();
+  console.log(`Live Verification Credentials: ${saPath || 'ADC / Runtime Environment Credentials'}`);
 
   console.log('\n--- 1. Testing Firestore Live Write/Read/Delete ---');
   try {
