@@ -139,6 +139,62 @@ export function App() {
         </p>
       </div>
 
+      {/* Pipeline Visualization Chain */}
+      <div className="pipeline-container">
+        <div className={`pipeline-node ${activeStep === 'PROFILE' ? 'active' : 'completed'}`}>
+          <div className="pipeline-node-icon">📁</div>
+          <div className="pipeline-node-title">Evidence Ingestion</div>
+          <span className={`pipeline-node-status ${activeStep === 'PROFILE' ? 'active' : 'completed'}`}>
+            {activeStep === 'PROFILE' ? 'active' : 'completed'}
+          </span>
+        </div>
+        <div className="pipeline-connector">➔</div>
+        
+        <div className={`pipeline-node ${activeStep === 'EXTRACTION' ? 'active' : (intelligence ? 'completed' : 'pending')}`}>
+          <div className="pipeline-node-icon">🧠</div>
+          <div className="pipeline-node-title">AI Intelligence</div>
+          <span className={`pipeline-node-status ${activeStep === 'EXTRACTION' ? 'active' : (intelligence ? 'completed' : 'pending')}`}>
+            {activeStep === 'EXTRACTION' ? 'active' : (intelligence ? 'completed' : 'pending')}
+          </span>
+        </div>
+        <div className="pipeline-connector">➔</div>
+
+        <div className={`pipeline-node ${activeStep === 'GENERATION' ? 'active' : (pitchDeck ? 'completed' : 'pending')}`}>
+          <div className="pipeline-node-icon">✍️</div>
+          <div className="pipeline-node-title">Grounded Synthesis</div>
+          <span className={`pipeline-node-status ${activeStep === 'GENERATION' ? 'active' : (pitchDeck ? 'completed' : 'pending')}`}>
+            {activeStep === 'GENERATION' ? 'active' : (pitchDeck ? 'completed' : 'pending')}
+          </span>
+        </div>
+        <div className="pipeline-connector">➔</div>
+
+        <div className={`pipeline-node ${activeStep === 'EVALUATION' ? 'active' : (evaluation ? 'completed' : 'pending')}`}>
+          <div className="pipeline-node-icon">⚖️</div>
+          <div className="pipeline-node-title">AI Quality Gate</div>
+          <span className={`pipeline-node-status ${activeStep === 'EVALUATION' ? 'active' : (evaluation ? 'completed' : 'pending')}`}>
+            {activeStep === 'EVALUATION' ? 'active' : (evaluation ? 'completed' : 'pending')}
+          </span>
+        </div>
+        <div className="pipeline-connector">➔</div>
+
+        <div className={`pipeline-node ${activeStep === 'REGENERATION' ? 'active' : (activeStep === 'EXPORT' ? 'completed' : 'pending')}`}>
+          <div className="pipeline-node-icon">🔄</div>
+          <div className="pipeline-node-title">Targeted Regen</div>
+          <span className={`pipeline-node-status ${activeStep === 'REGENERATION' ? 'active' : (activeStep === 'EXPORT' ? 'completed' : 'pending')}`}>
+            {activeStep === 'REGENERATION' ? 'active' : (activeStep === 'EXPORT' ? 'completed' : 'pending')}
+          </span>
+        </div>
+        <div className="pipeline-connector">➔</div>
+
+        <div className={`pipeline-node ${activeStep === 'EXPORT' ? 'active' : 'pending'}`}>
+          <div className="pipeline-node-icon">📄</div>
+          <div className="pipeline-node-title">PDF Export</div>
+          <span className={`pipeline-node-status ${activeStep === 'EXPORT' ? 'active' : 'pending'}`}>
+            {activeStep === 'EXPORT' ? 'active' : 'pending'}
+          </span>
+        </div>
+      </div>
+
       {/* Golden Path Step Navigation */}
       <nav className="golden-path-nav">
         <button className={`step-btn ${activeStep === 'PROFILE' ? 'active' : ''}`} onClick={() => setActiveStep('PROFILE')}>
@@ -184,13 +240,18 @@ export function App() {
             <span>Startup Profile &amp; Supporting Evidence</span>
             <span className="tag tag-primary">Step 1 — Ingestion</span>
           </div>
+          
+          <div style={{ marginBottom: '20px', padding: '12px 16px', background: 'rgba(99, 102, 241, 0.08)', borderLeft: '4px solid var(--primary)', borderRadius: '0 8px 8px 0', fontSize: '0.9rem', color: 'var(--text-muted)' }}>
+            <strong>Hero Demo Strategy:</strong> We are demonstrating Fundable AI using our own product, <strong>ScoutEdge</strong>, as the first real-world validation case. ScoutEdge is an autonomous AI pitch intelligence and VC scouting platform. This shows the platform resolving messy startup files into a cohesive investor narrative.
+          </div>
+
           <div className="grid-2">
             <div>
               <h3>Company Metadata</h3>
-              <p style={{ marginTop: '8px', color: 'var(--text-muted)' }}>Name: {startupProfile?.name || 'ScoutEdge'}</p>
-              <p style={{ color: 'var(--text-muted)' }}>Tagline: {startupProfile?.tagline || 'Autonomous AI Pitch Intelligence & VC Scouting'}</p>
-              <p style={{ color: 'var(--text-muted)' }}>Stage: {startupProfile?.stage || 'Pre-Seed'}</p>
-              <p style={{ color: 'var(--text-muted)' }}>Target Raise: ${startupProfile?.targetRaise?.toLocaleString() || '1,500,000'}</p>
+              <p style={{ marginTop: '8px', color: 'var(--text-main)' }}>Name: <strong>{startupProfile?.name || 'ScoutEdge'}</strong></p>
+              <p style={{ color: 'var(--text-muted)', marginTop: '4px' }}>Tagline: {startupProfile?.tagline || 'Autonomous AI Pitch Intelligence & VC Scouting'}</p>
+              <p style={{ color: 'var(--text-muted)', marginTop: '4px' }}>Stage: {startupProfile?.stage || 'Pre-Seed'}</p>
+              <p style={{ color: 'var(--text-muted)', marginTop: '4px' }}>Target Raise: ${startupProfile?.targetRaise?.toLocaleString() || '1,500,000'}</p>
             </div>
             <div>
               <h3>Ingested Documents (Cloud Storage)</h3>
