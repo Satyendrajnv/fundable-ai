@@ -173,4 +173,91 @@ describe('Fundable AI API Shell & Endpoint Validation Suite', () => {
     assert.strictEqual(res.body.intelligence.version, 2, 'Version should increment on refinement');
     assert.ok(res.body.intelligence.entities.traction.statement.includes('$150k ARR'));
   });
+
+  describe('AgroPulse User-First End-to-End Regression Validation', () => {
+    const startupId = 'agropulse-regression';
+
+    test('1. Upload evidence document with custom text', async () => {
+      const docRes = await executeRequest('POST', `/api/documents/${startupId}`, {
+        fileName: 'AgroPulse_Spec.txt',
+        fileContent: 'Startup: AgroPulse. Problem: Small farms waste water because irrigation decisions are based on fixed schedules. Solution: Low-cost sensor-driven irrigation recommendations. Traction: 127 paying farms.',
+        fileType: 'txt'
+      });
+      assert.strictEqual(docRes.status, 201);
+      assert.strictEqual(docRes.body.document.fileName, 'AgroPulse_Spec.txt');
+    });
+
+    test('2. Extract intelligence and assert strict grounding without ScoutEdge leakage', async () => {
+      const extRes = await executeRequest('POST', `/api/intelligence/${startupId}/extract`, {
+        name: 'AgroPulse',
+        tagline: 'Precision irrigation for small farms'
+      });
+      assert.strictEqual(extRes.status, 200);
+      const intel = extRes.body.intelligence;
+      assert.ok(intel);
+      
+      // Problem vector assertion
+      assert.ok(intel.entities.problem.statement.includes('waste water'), 'Problem must match AgroPulse data');
+      assert.ok(!intel.entities.problem.statement.includes('ScoutEdge'), 'No ScoutEdge leakage in problem');
+      
+      // Solution vector assertion
+      assert.ok(intel.entities.solution.statement.includes('sensor-driven'), 'Solution must match AgroPulse data');
+      assert.ok(!intel.entities.solution.statement.includes('Serverless multi-stage'), 'No generic SaaS leakage in solution');
+    });
+
+    test('3. Founder Q&A generation detects gaps and answers refine traction', async () => {
+      // Get gaps questions
+      const qRes = await executeRequest('POST', `/api/intelligence/${startupId}/questions`);
+      assert.strictEqual(qRes.status, 200);
+      assert.ok(qRes.body.questions.length > 0);
+
+      // Submit answers
+      const ansRes = await executeRequest('POST', `/api/intelligence/${startupId}/answers`, {
+        answers: [
+          {
+            questionId: 'q_traction_1',
+            answer: 'Refined traction: 127 paying farms validated in July 2026.',
+            skipped: false
+          }
+        ]
+      });
+      assert.strictEqual(ansRes.status, 200);
+      assert.strictEqual(ansRes.body.intelligence.version, 2);
+      assert.ok(ansRes.body.intelligence.entities.traction.statement.includes('127 paying farms'));
+    });
+
+    test('4. Generate deck and assert 10 slides ground in AgroPulse context', async () => {
+      const deckRes = await executeRequest('POST', `/api/pitches/${startupId}/generate`);
+      assert.strictEqual(deckRes.status, 200);
+      const deck = deckRes.body.deck;
+      assert.strictEqual(deck.slides.length, 10, 'Deck must enforce exactly 10 slides');
+      assert.ok(deck.slides[1].headline.includes('AgroPulse') || deck.slides[1].bulletPoints[0].includes('waste water') || deck.slides[1].bulletPoints[0].includes('AgroPulse'), 'Slide content must reflect AgroPulse problem');
+    });
+
+    test('5. Evaluate and perform targeted regeneration preserving non-targeted slides', async () => {
+      // First get a deck
+      const deckRes = await executeRequest('POST', `/api/pitches/${startupId}/generate`);
+      const deck = deckRes.body.deck;
+
+      // Evaluate
+      const evalRes = await executeRequest('GET', `/api/evaluations/${deck.deckId}`);
+      assert.strictEqual(evalRes.status, 200);
+      assert.ok(evalRes.body.evaluation);
+
+      // Regenerate Slide 6 and 9
+      const regenRes = await executeRequest('POST', `/api/evaluations/${deck.deckId}/regenerate-slide`, {
+        targetSlideNumbers: [6, 9],
+        reason: 'Improve evidence grounding scores'
+      });
+      assert.strictEqual(regenRes.status, 200);
+      const updatedDeck = regenRes.body.updatedDeck;
+      assert.strictEqual(updatedDeck.version, 2);
+
+      // Assert non-target slide (Slide 1) has unchanged title
+      assert.strictEqual(updatedDeck.slides[0].title, deck.slides[0].title, 'Non-target slide 1 must remain unchanged');
+      
+      // Assert target slide (Slide 6) is mutated
+      assert.ok(updatedDeck.slides[5].headline.includes('Refined & Grounded'), 'Target slide 6 must be mutated');
+    });
+  });
 });

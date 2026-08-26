@@ -15,6 +15,7 @@ import {
 } from '@fundable-ai/core-types';
 import { GoogleGenAI } from '@google/genai';
 import { config } from '../config.js';
+import { sessionStore } from '../services/session-store.js';
 
 export interface GeminiProvider {
   extractStartupIntelligence(profile: StartupProfile, evidence: StartupEvidence[]): Promise<StartupEntity>;
@@ -54,33 +55,58 @@ export class VertexGeminiProvider implements GeminiProvider {
 
   async extractStartupIntelligence(profile: StartupProfile, evidence: StartupEvidence[]): Promise<StartupEntity> {
     const evidenceIds = evidence.map(e => e.evidenceId);
-    const prompt = `You are a senior VC analyst. Extract the 10 core pitch intelligence vectors from this startup profile and return ONLY valid JSON.
+    
+    // Retrieve cached document contents for these evidence items from the session store
+    let documentContentsText = '';
+    for (const doc of evidence) {
+      const text = sessionStore.getDocumentContent(profile.startupId, doc.evidenceId);
+      if (text) {
+        // Safe budget check: truncate to 10,000 characters per document to fit safely in model context limit
+        const truncated = text.length > 10000 
+          ? text.slice(0, 5000) + '\n[... TRUNCATED FOR CONTEXT BUDGET ...]\n' + text.slice(-5000) 
+          : text;
+        documentContentsText += `\n--- DOCUMENT: ${doc.fileName} ---\n${truncated}\n`;
+      }
+    }
 
-STARTUP PROFILE:
+    if (!documentContentsText) {
+      documentContentsText = 'No evidence document content was supplied.';
+    }
+
+    const prompt = `You are a senior VC analyst. Extract the 10 core pitch intelligence vectors from this startup profile and the supplied document evidence, then return ONLY valid JSON.
+
+CRITICAL INSTRUCTIONS:
+1. Ground your extraction strictly in the supplied document evidence and startup metadata.
+2. Do NOT invent unsupported claims, SaaS models, or metrics if they are not mentioned in the source texts. 
+3. If a vector (e.g. traction, financials) has no evidence or mention in the source documents, mark it clearly as "Not provided in evidence" or equivalent. Do not hallucinate or use software SaaS defaults.
+
+STARTUP PROFILE METADATA:
 Name: ${profile.name}
 Tagline: ${profile.tagline}
 Stage: ${profile.stage}
 Target Raise: ${profile.targetRaise} ${profile.currency}
-Evidence documents: ${evidence.map(e => e.fileName).join(', ') || 'none provided'}
 
-Return this exact JSON structure with substantive, realistic content for each field:
+SUPPLIED DOCUMENT EVIDENCE:
+${documentContentsText}
+
+Return this exact JSON structure with substantive, realistic content for each field (or "Not provided in evidence" if not mentioned):
 {
   "intelligenceId": "intel_${profile.startupId}_live",
   "startupId": "${profile.startupId}",
   "version": 1,
   "entities": {
-    "problem": { "statement": "<specific market problem ${profile.name} solves>", "groundingEvidenceIds": ${JSON.stringify(evidenceIds)} },
-    "icp": { "statement": "<ideal customer profile and buyer persona>", "groundingEvidenceIds": ${JSON.stringify(evidenceIds)} },
-    "valueProposition": { "statement": "<core value proposition and differentiation>", "groundingEvidenceIds": ${JSON.stringify(evidenceIds)} },
-    "solution": { "statement": "<technical solution architecture and approach>", "groundingEvidenceIds": ${JSON.stringify(evidenceIds)} },
-    "businessModel": { "statement": "<revenue model, pricing tiers, unit economics>", "groundingEvidenceIds": ${JSON.stringify(evidenceIds)} },
-    "gtm": { "statement": "<go-to-market strategy and distribution channels>", "groundingEvidenceIds": ${JSON.stringify(evidenceIds)} },
-    "traction": { "statement": "<traction metrics, ARR, users, key milestones>", "groundingEvidenceIds": ${JSON.stringify(evidenceIds)} },
+    "problem": { "statement": "<extracted problem statement>", "groundingEvidenceIds": ${JSON.stringify(evidenceIds)} },
+    "icp": { "statement": "<extracted ideal customer profile>", "groundingEvidenceIds": ${JSON.stringify(evidenceIds)} },
+    "valueProposition": { "statement": "<extracted value proposition>", "groundingEvidenceIds": ${JSON.stringify(evidenceIds)} },
+    "solution": { "statement": "<extracted solution approach>", "groundingEvidenceIds": ${JSON.stringify(evidenceIds)} },
+    "businessModel": { "statement": "<revenue model, pricing, unit economics>", "groundingEvidenceIds": ${JSON.stringify(evidenceIds)} },
+    "gtm": { "statement": "<go-to-market strategy>", "groundingEvidenceIds": ${JSON.stringify(evidenceIds)} },
+    "traction": { "statement": "<traction, milestones, ARR>", "groundingEvidenceIds": ${JSON.stringify(evidenceIds)} },
     "competition": { "statement": "<competitive landscape and defensible moat>", "groundingEvidenceIds": ${JSON.stringify(evidenceIds)} },
-    "financials": { "burnRate": 15000, "runwayMonths": 10, "projectedARR": 250000, "groundingEvidenceIds": ${JSON.stringify(evidenceIds)} },
-    "fundraising": { "ask": "Raising ${profile.targetRaise} ${profile.currency} ${profile.stage}", "useOfFunds": "<allocation breakdown>", "groundingEvidenceIds": ${JSON.stringify(evidenceIds)} }
+    "financials": { "burnRate": 0, "runwayMonths": 0, "projectedARR": 0, "groundingEvidenceIds": ${JSON.stringify(evidenceIds)} },
+    "fundraising": { "ask": "<raise amount and terms>", "useOfFunds": "<allocation breakdown>", "groundingEvidenceIds": ${JSON.stringify(evidenceIds)} }
   },
-  "extractionConfidence": 0.94,
+  "extractionConfidence": 0.95,
   "createdAt": "${new Date().toISOString()}"
 }`;
 
@@ -133,32 +159,66 @@ Return your output as a JSON array of objects matching this exact structure:
   }
 
   private _fallbackGenerateQuestions(intelligence: StartupEntity): Question[] {
-    return [
-      {
+    const questions: Question[] = [];
+    const entities = intelligence.entities;
+
+    // Check if traction is placeholder or missing details
+    const hasTractionDetails = entities.traction?.statement && 
+      !entities.traction.statement.toLowerCase().includes('under review') &&
+      !entities.traction.statement.toLowerCase().includes('not provided');
+
+    if (!hasTractionDetails) {
+      questions.push({
         questionId: 'q_traction_1',
-        question: 'What are your current revenue/ARR numbers and customer growth month-over-month?',
-        reason: 'Investors require quantitative evidence of market adoption rather than qualitative descriptions.',
+        question: `Can you share your current customer count, pilot projects, or any validation metrics for ${intelligence.startupId}?`,
+        reason: 'Investors require proof of market demand and traction metrics to evaluate venture risk.',
         relatedVector: 'traction',
         priority: 'HIGH',
-        suggestedFormat: 'Enter ARR in USD or customer count growth percentage.'
-      },
-      {
+        suggestedFormat: 'Enter paying customer counts, user numbers, or pilot names.'
+      });
+    }
+
+    // Check if business model is placeholder
+    const hasModelDetails = entities.businessModel?.statement && 
+      !entities.businessModel.statement.toLowerCase().includes('under review') &&
+      !entities.businessModel.statement.toLowerCase().includes('not provided');
+
+    if (!hasModelDetails) {
+      questions.push({
+        questionId: 'q_businessModel_1',
+        question: 'How does your venture charge customers and generate revenue?',
+        reason: 'A clear monetization strategy and pricing outline is essential to project unit economics.',
+        relatedVector: 'businessModel',
+        priority: 'HIGH',
+        suggestedFormat: 'Specify pricing tiers, transaction fees, or contract sizes.'
+      });
+    }
+
+    // Check if financials runway/burn are zero
+    if (!entities.financials || entities.financials.burnRate === 0 || entities.financials.runwayMonths === 0) {
+      questions.push({
+        questionId: 'q_financials_1',
+        question: 'What is your current monthly operating cost (burn rate) and runway in months?',
+        reason: 'Understanding capital efficiency and runway is critical to assess investment timing.',
+        relatedVector: 'financials',
+        priority: 'MEDIUM',
+        suggestedFormat: 'e.g., Burn is $15k/mo, runway is 12 months.'
+      });
+    }
+
+    // Default fallback if all fields look complete
+    if (questions.length === 0) {
+      questions.push({
         questionId: 'q_gtm_1',
-        question: 'Which customer acquisition channels are proving most cost-effective?',
-        reason: 'Clarifying the primary GTM motion is essential to justify sales and marketing spend projections.',
+        question: 'What are your primary sales and distribution channels to reach new customers?',
+        reason: 'A repeatable go-to-market strategy justifies resource allocation projections.',
         relatedVector: 'gtm',
         priority: 'MEDIUM',
-        suggestedFormat: 'Specify direct sales, self-serve, or key partnership channels.'
-      },
-      {
-        questionId: 'q_fundraising_1',
-        question: 'How will the target raise be allocated across departments over the next 18 months?',
-        reason: 'A clear runway allocation demonstrates capital efficiency and strategic foresight.',
-        relatedVector: 'fundraising',
-        priority: 'HIGH',
-        suggestedFormat: 'e.g., 60% Engineering, 20% Marketing, 20% Operations.'
-      }
-    ];
+        suggestedFormat: 'Describe direct sales, partnerships, or digital channels.'
+      });
+    }
+
+    return questions.slice(0, 3);
   }
 
   async refineIntelligenceWithAnswers(intelligence: StartupEntity, answers: FounderAnswer[]): Promise<StartupEntity> {
@@ -472,21 +532,96 @@ For each target slide, improve the content based on the critique. Return the upd
 
   private _fallbackExtract(profile: StartupProfile, evidence: StartupEvidence[]): StartupEntity {
     const evidenceIds = evidence.map(e => e.evidenceId);
+    
+    // Attempt to parse/check document contents from session store
+    let mergedDocumentText = '';
+    for (const doc of evidence) {
+      const content = sessionStore.getDocumentContent(profile.startupId, doc.evidenceId);
+      if (content) mergedDocumentText += ' ' + content;
+    }
+
+    // Helper helper to look up keyword or default
+    const findEvidenceOrPlaceholder = (keywords: string[], fallbackText: string): string => {
+      if (mergedDocumentText) {
+        // Look for sentences containing any of the keywords
+        const sentences = mergedDocumentText.split(/[.!?\n]+/);
+        for (const sentence of sentences) {
+          const lower = sentence.toLowerCase();
+          if (keywords.some(kw => lower.includes(kw))) {
+            const clean = sentence.trim();
+            if (clean.length > 20) return clean.slice(0, 180);
+          }
+        }
+      }
+      return fallbackText;
+    };
+
+    const problemStatement = findEvidenceOrPlaceholder(
+      ['problem', 'pain', 'challenge', 'waste', 'struggle', 'issue'],
+      `${profile.name} solves core market inefficiencies related to ${profile.tagline.toLowerCase()}.`
+    );
+
+    const solutionStatement = findEvidenceOrPlaceholder(
+      ['solution', 'product', 'built', 'developed', 'software', 'hardware', 'sensor', 'device'],
+      `Provides a specialized solution leveraging ${profile.tagline.toLowerCase()} to address these user pain points.`
+    );
+
+    const icpStatement = findEvidenceOrPlaceholder(
+      ['icp', 'customer', 'target', 'client', 'buyer', 'persona', 'farms', 'hospitals'],
+      `Target customers and ICP matching the operations segment of ${profile.name}.`
+    );
+
+    const businessModelStatement = findEvidenceOrPlaceholder(
+      ['model', 'revenue', 'charge', 'price', 'pricing', 'fee', 'license', 'subscription'],
+      'Business model and revenue generation strategy under review.'
+    );
+
+    const gtmStatement = findEvidenceOrPlaceholder(
+      ['gtm', 'market', 'channel', 'sales', 'acquire', 'marketing', 'distribution'],
+      `Go-to-market and channel distribution strategies matching ${profile.name}'s operations.`
+    );
+
+    const tractionStatement = findEvidenceOrPlaceholder(
+      ['traction', 'milestones', 'users', 'customers', 'paying', 'growth', 'arr', 'mrr'],
+      'Early validation, pipeline development, and milestones under review.'
+    );
+
+    const competitionStatement = findEvidenceOrPlaceholder(
+      ['competition', 'competitor', 'alternative', 'moat', 'advantage', 'defensible'],
+      `Defensible advantages and unique positioning compared to alternatives in the ${profile.name} domain.`
+    );
+
+    // Extract numbers from text if possible
+    let burnRate = 0;
+    let runwayMonths = 0;
+    let projectedARR = 0;
+
+    if (mergedDocumentText) {
+      const burnMatch = mergedDocumentText.match(/(?:burn|burnrate|burn rate)[^0-9]*([0-9,]+)/i);
+      if (burnMatch) burnRate = parseInt(burnMatch[1].replace(/,/g, ''), 10) || 0;
+
+      const runwayMatch = mergedDocumentText.match(/(?:runway|months)[^0-9]*([0-9]+)/i);
+      if (runwayMatch) runwayMonths = parseInt(runwayMatch[1], 10) || 0;
+
+      const arrMatch = mergedDocumentText.match(/(?:arr|revenue|projected)[^0-9]*([0-9,]+)/i);
+      if (arrMatch) projectedARR = parseInt(arrMatch[1].replace(/,/g, ''), 10) || 0;
+    }
+
     return StartupEntitySchema.parse({
       intelligenceId: `intel_${profile.startupId}_fallback`,
       startupId: profile.startupId,
       version: 1,
       entities: {
-        problem: { statement: `${profile.name} solves key operational pain points in its market segment with automated AI workflows.`, groundingEvidenceIds: evidenceIds },
-        icp: { statement: `Target buyers: ${profile.stage} startups, venture funds, and accelerator cohorts.`, groundingEvidenceIds: evidenceIds },
-        valueProposition: { statement: `${profile.tagline}. Automates evidence grounding and VC pitch synthesis.`, groundingEvidenceIds: evidenceIds },
-        solution: { statement: 'Serverless multi-stage AI reasoning platform built on Google Cloud Vertex AI & Cloud Run.', groundingEvidenceIds: evidenceIds },
-        businessModel: { statement: 'B2B SaaS subscription per seat plus enterprise accelerator cohort licenses.', groundingEvidenceIds: evidenceIds },
-        gtm: { statement: 'Direct outbound accelerator cohort distribution and VC referral network flywheel.', groundingEvidenceIds: evidenceIds },
-        traction: { statement: '$12,000 ARR, 4 active pilot accelerators, 150+ pitch decks parsed in beta.', groundingEvidenceIds: evidenceIds },
-        competition: { statement: 'Generic AI generators lack VC-grade evidence grounding, 10-vector extraction, and 4-vector readiness scoring.', groundingEvidenceIds: evidenceIds },
-        financials: { burnRate: 15000, runwayMonths: 10, projectedARR: 250000, groundingEvidenceIds: evidenceIds },
-        fundraising: { ask: `Raising ${profile.targetRaise} ${profile.currency} ${profile.stage}`, useOfFunds: '60% AI R&D & Engineering, 25% GTM, 15% Operations', groundingEvidenceIds: evidenceIds }
+        problem: { statement: problemStatement, groundingEvidenceIds: evidenceIds },
+        icp: { statement: icpStatement, groundingEvidenceIds: evidenceIds },
+        valueProposition: { statement: `${profile.name}: ${profile.tagline}.`, groundingEvidenceIds: evidenceIds },
+        solution: { statement: solutionStatement, groundingEvidenceIds: evidenceIds },
+        businessModel: { statement: businessModelStatement, groundingEvidenceIds: evidenceIds },
+        gtm: { statement: gtmStatement, groundingEvidenceIds: evidenceIds },
+        traction: { statement: tractionStatement, groundingEvidenceIds: evidenceIds },
+        competition: { statement: competitionStatement, groundingEvidenceIds: evidenceIds },
+        financials: { burnRate, runwayMonths, projectedARR, groundingEvidenceIds: evidenceIds },
+        fundraising: { ask: `Raising ${profile.targetRaise.toLocaleString()} ${profile.currency} ${profile.stage}`, useOfFunds: 'Capital allocation under founder review.', groundingEvidenceIds: evidenceIds }
       },
       extractionConfidence: 0.94,
       createdAt: new Date().toISOString()
