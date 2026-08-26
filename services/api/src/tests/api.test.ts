@@ -140,4 +140,37 @@ describe('Fundable AI API Shell & Endpoint Validation Suite', () => {
     assert.strictEqual(res.body.exportJob.format, 'GOOGLE_SLIDES');
     assert.ok(res.body.exportJob.downloadUrl.includes('docs.google.com/presentation'));
   });
+
+  test('POST /api/intelligence/test-startup-002/questions generates structured interview questions', async () => {
+    const res = await executeRequest('POST', '/api/intelligence/test-startup-002/questions');
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(res.body.status, 'COMPLETED');
+    assert.ok(Array.isArray(res.body.questions));
+    assert.ok(res.body.questions.length >= 3);
+    assert.ok(res.body.questions[0].questionId);
+    assert.ok(res.body.questions[0].question);
+    assert.ok(res.body.questions[0].relatedVector);
+  });
+
+  test('POST /api/intelligence/test-startup-002/answers refines business vectors with founder answers', async () => {
+    const answersPayload = [
+      {
+        questionId: 'q_traction_1',
+        answer: '$150k ARR, 15% MoM customer growth',
+        skipped: false
+      },
+      {
+        questionId: 'q_gtm_1',
+        answer: 'Direct sales to Enterprise VCs and growth accelerators',
+        skipped: false
+      }
+    ];
+
+    const res = await executeRequest('POST', '/api/intelligence/test-startup-002/answers', { answers: answersPayload });
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(res.body.status, 'COMPLETED');
+    assert.ok(res.body.intelligence);
+    assert.strictEqual(res.body.intelligence.version, 2, 'Version should increment on refinement');
+    assert.ok(res.body.intelligence.entities.traction.statement.includes('$150k ARR'));
+  });
 });

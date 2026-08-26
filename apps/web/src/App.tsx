@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 
-type Step = 'PROFILE' | 'EXTRACTION' | 'GENERATION' | 'EVALUATION' | 'REGENERATION' | 'EXPORT';
+type Step = 'PROFILE' | 'EXTRACTION' | 'QA' | 'GENERATION' | 'EVALUATION' | 'REGENERATION' | 'EXPORT';
 
 export function App() {
   const [activeStep, setActiveStep] = useState<Step>('PROFILE');
@@ -14,17 +14,183 @@ export function App() {
   const [pitchDeck, setPitchDeck] = useState<any>(null);
   const [evaluation, setEvaluation] = useState<any>(null);
 
-  // Load initial ScoutEdge profile from backend API
-  useEffect(() => {
+  // User-First Flow states
+  const [activeStartupId, setActiveStartupId] = useState<string>('scoutedge-001');
+  const [questions, setQuestions] = useState<any[]>([]);
+  const [answers, setAnswers] = useState<Record<string, string>>({});
+  const [currentQuestionIndex, setCurrentQuestionIndex] = useState<number>(0);
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
+  const [fileName, setFileName] = useState<string>('');
+  const [extractedTextLength, setExtractedTextLength] = useState<number>(0);
+
+  // Load initial ScoutEdge profile from backend API for demo
+  const loadScoutEdge = () => {
+    setLoading(true);
+    setErrorMessage('');
+    setStatusMessage('Loading ScoutEdge Seed Profile...');
+    setActiveStartupId('scoutedge-001');
     fetch('/api/startups/scoutedge-001')
       .then(res => res.json())
       .then(data => {
         if (data.startup) {
           setStartupProfile(data.startup);
+          setActiveStep('PROFILE');
         }
       })
-      .catch(err => console.error('Failed to fetch startup profile:', err));
+      .catch(err => {
+        console.error('Failed to fetch startup profile:', err);
+        setErrorMessage('Failed to fetch ScoutEdge profile.');
+      })
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    loadScoutEdge();
   }, []);
+
+  // Ingestion: Start from Scratch Option
+  const handleStartFromScratch = () => {
+    const startupId = `startup_scratch_${Date.now()}`;
+    setActiveStartupId(startupId);
+    setStartupProfile({
+      startupId,
+      name: 'Custom Venture',
+      tagline: 'Custom business narrative built from scratch',
+      stage: 'Seed',
+      targetRaise: 1000000,
+      currency: 'USD'
+    });
+    setLoading(true);
+    // Initialize blank/custom startup on backend
+    fetch('/api/startups', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        startupId,
+        name: 'Custom Venture',
+        tagline: 'Custom business narrative built from scratch',
+        founderId: 'usr_custom_123',
+        stage: 'Seed',
+        targetRaise: 1000000,
+        currency: 'USD'
+      })
+    })
+      .then(() => {
+        setActiveStep('PROFILE');
+      })
+      .catch(err => {
+        console.error(err);
+        setErrorMessage('Failed to initialize start from scratch.');
+      })
+      .finally(() => setLoading(false));
+  };
+
+  // Client-side PDF extractor using pdfjs-dist
+  const extractTextFromPdf = async (file: File): Promise<string> => {
+    const arrayBuffer = await file.arrayBuffer();
+    const pdfjsLib = (window as any).pdfjsLib;
+    if (!pdfjsLib) throw new Error('PDF.js library failed to load from CDN. Try a text file.');
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
+    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+    let text = '';
+    for (let i = 1; i <= pdf.numPages; i++) {
+      const page = await pdf.getPage(i);
+      const content = await page.getTextContent();
+      const strings = content.items.map((item: any) => item.str);
+      text += strings.join(' ') + '\n';
+    }
+    return text;
+  };
+
+  // File upload text reader
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setLoading(true);
+    setErrorMessage('');
+    setFileName(file.name);
+    setUploadProgress(10);
+    setStatusMessage(`Parsing document: ${file.name}...`);
+
+    try {
+      const startupId = `startup_${Date.now()}`;
+      setActiveStartupId(startupId);
+
+      // Extract text content
+      let fileContent = '';
+      if (file.type === 'application/pdf') {
+        setUploadProgress(30);
+        fileContent = await extractTextFromPdf(file);
+      } else {
+        setUploadProgress(50);
+        fileContent = await file.text();
+      }
+
+      setExtractedTextLength(fileContent.length);
+      setUploadProgress(70);
+      setStatusMessage(`Ingesting parsed text into Cloud Storage...`);
+
+      // Initialize startup profile on backend
+      await fetch('/api/startups', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          startupId,
+          name: file.name.split('.')[0].slice(0, 30),
+          tagline: 'Extracted from uploaded venture materials',
+          founderId: 'usr_custom_123',
+          stage: 'Seed',
+          targetRaise: 1000000,
+          currency: 'USD'
+        })
+      });
+
+      // Upload text content to GCS via API
+      const response = await fetch(`/api/documents/${startupId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fileName: file.name,
+          fileContent: fileContent.slice(0, 100000), // cap to 100kb for safety
+          fileType: file.name.split('.').pop() || 'txt'
+        })
+      });
+
+      if (!response.ok) throw new Error('Upload request failed');
+      
+      setUploadProgress(90);
+      setStatusMessage('Ingestion complete. Extracting 10 Venture Vectors...');
+      
+      // Auto-extract intelligence from the uploaded evidence
+      const extractRes = await fetch(`/api/intelligence/${startupId}/extract`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: file.name.split('.')[0].slice(0, 30),
+          tagline: 'Extracted from uploaded venture materials'
+        })
+      });
+      const extractData = await extractRes.json();
+      if (extractData.intelligence) {
+        setStartupProfile({
+          startupId,
+          name: file.name.split('.')[0].slice(0, 30),
+          tagline: 'Extracted from uploaded venture materials',
+          stage: 'Seed',
+          targetRaise: 1000000,
+          currency: 'USD'
+        });
+        setIntelligence(extractData.intelligence);
+        setActiveStep('EXTRACTION');
+      }
+    } catch (err: any) {
+      setErrorMessage('Ingestion failed: ' + err.message);
+    } finally {
+      setLoading(false);
+      setUploadProgress(null);
+    }
+  };
 
   // Golden Path Handler 1: Trigger Stage 2 Extraction
   const handleExtractIntelligence = async () => {
@@ -32,7 +198,14 @@ export function App() {
     setErrorMessage('');
     setStatusMessage('Running Gemini 2.x Structured Entity Extraction across 10 VC vectors...');
     try {
-      const res = await fetch('/api/intelligence/scoutedge-001/extract', { method: 'POST' });
+      const res = await fetch(`/api/intelligence/${activeStartupId}/extract`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: startupProfile?.name || 'ScoutEdge',
+          tagline: startupProfile?.tagline || 'Autonomous AI Pitch Intelligence & VC Scouting'
+        })
+      });
       const data = await res.json();
       if (data.intelligence) {
         setIntelligence(data.intelligence);
@@ -45,13 +218,92 @@ export function App() {
     }
   };
 
+  // Start Founder Q&A Step
+  const handleStartQA = async () => {
+    setLoading(true);
+    setErrorMessage('');
+    setStatusMessage('Formulating structured founder interviews via Gemini...');
+    try {
+      const res = await fetch(`/api/intelligence/${activeStartupId}/questions`, { method: 'POST' });
+      const data = await res.json();
+      if (data.questions && data.questions.length > 0) {
+        setQuestions(data.questions);
+        setCurrentQuestionIndex(0);
+        setActiveStep('QA');
+      } else {
+        // Fallback to Generation if no questions are generated
+        setActiveStep('GENERATION');
+      }
+    } catch (err: any) {
+      setErrorMessage('Failed to generate Q&A: ' + err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Answer a question and proceed
+  const handleAnswerSubmit = (questionId: string, answer: string, skipped = false) => {
+    setAnswers(prev => ({ ...prev, [questionId]: skipped ? 'Skipped' : answer }));
+    if (currentQuestionIndex < questions.length - 1) {
+      setCurrentQuestionIndex(prev => prev + 1);
+    }
+  };
+
+  // Skip the current question
+  const handleSkipQuestion = (questionId: string) => {
+    handleAnswerSubmit(questionId, 'Skipped', true);
+  };
+
+  // Back to previous question
+  const handlePrevQuestion = () => {
+    if (currentQuestionIndex > 0) {
+      setCurrentQuestionIndex(prev => prev - 1);
+    }
+  };
+
+  // Submit all answers to refine intelligence
+  const handleFinishQA = async () => {
+    setLoading(true);
+    setErrorMessage('');
+    setStatusMessage('Merging answers and refining 10 business vectors...');
+    try {
+      const answerPayload = Object.entries(answers).map(([qId, ans]) => ({
+        questionId: qId,
+        answer: ans,
+        skipped: ans === 'Skipped'
+      }));
+
+      const res = await fetch(`/api/intelligence/${activeStartupId}/answers`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ answers: answerPayload })
+      });
+      const data = await res.json();
+      if (data.intelligence) {
+        setIntelligence(data.intelligence);
+        // Automatically generate deck after refining intelligence
+        setStatusMessage('Answers applied. Generating 10 grounded presentation slides...');
+        const genRes = await fetch(`/api/pitches/${activeStartupId}/generate`, { method: 'POST' });
+        const genData = await genRes.json();
+        if (genData.deck) {
+          setPitchDeck(genData.deck);
+          setActiveStep('GENERATION');
+        }
+      }
+    } catch (err: any) {
+      setErrorMessage('Failed to apply answers: ' + err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Golden Path Handler 2: Trigger Stage 5 Multi-Stage Generation
   const handleGenerateDeck = async () => {
     setLoading(true);
     setErrorMessage('');
     setStatusMessage('Synthesizing exactly 10 grounded investor slides via Gemini 2.x...');
     try {
-      const res = await fetch('/api/pitches/scoutedge-001/generate', { method: 'POST' });
+      const res = await fetch(`/api/pitches/${activeStartupId}/generate`, { method: 'POST' });
       const data = await res.json();
       if (data.deck) {
         setPitchDeck(data.deck);
@@ -66,11 +318,12 @@ export function App() {
 
   // Golden Path Handler 3: Run Stage 6 Evaluation Engine
   const handleEvaluateDeck = async () => {
+    if (!pitchDeck) return;
     setLoading(true);
     setErrorMessage('');
     setStatusMessage('Running 4-Vector Evaluation Engine (Completeness, Consistency, Grounding, Readiness)...');
     try {
-      const res = await fetch('/api/evaluations/deck_scoutedge_v1');
+      const res = await fetch(`/api/evaluations/${pitchDeck.deckId}`);
       const data = await res.json();
       if (data.evaluation) {
         setEvaluation(data.evaluation);
@@ -85,11 +338,12 @@ export function App() {
 
   // Golden Path Handler 4: Trigger Stage 7 Targeted Regeneration
   const handleTargetedRegeneration = async () => {
+    if (!pitchDeck) return;
     setLoading(true);
     setErrorMessage('');
     setStatusMessage('Isolating Slide 6 (Traction) & Slide 9 (Financials) for targeted regeneration...');
     try {
-      const res = await fetch('/api/evaluations/deck_scoutedge_v1/regenerate-slide', {
+      const res = await fetch(`/api/evaluations/${pitchDeck.deckId}/regenerate-slide`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -128,8 +382,8 @@ export function App() {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
           <div>
             <strong style={{ color: 'var(--warning)' }}>AI PROVIDER STATUS:</strong> Vertex AI / Gemini 2.x &nbsp;|&nbsp;
-            <strong>STATUS:</strong> {intelligence?.intelligenceId?.includes('_live') ? <span style={{ color: 'var(--success)' }}>GEMINI LIVE</span> : <span style={{ color: 'var(--warning)' }}>SANDBOX CONSTRAINED</span>} &nbsp;|&nbsp;
-            <strong>EXECUTION:</strong> {intelligence?.intelligenceId?.includes('_live') ? 'Vertex AI / Gemini API' : 'DETERMINISTIC FALLBACK'} &nbsp;|&nbsp;
+            <strong>STATUS:</strong> {intelligence?.intelligenceId?.includes('_live') || intelligence?.intelligenceId?.includes('_refined') ? <span style={{ color: 'var(--success)' }}>GEMINI LIVE</span> : <span style={{ color: 'var(--warning)' }}>SANDBOX CONSTRAINED</span>} &nbsp;|&nbsp;
+            <strong>EXECUTION:</strong> {intelligence?.intelligenceId?.includes('_live') || intelligence?.intelligenceId?.includes('_refined') ? 'Vertex AI / Gemini API' : 'DETERMINISTIC FALLBACK'} &nbsp;|&nbsp;
             <strong>CONTRACT:</strong> GeminiProvider-compatible
           </div>
           <span className="tag tag-warning">Provider Abstraction Active</span>
@@ -152,9 +406,18 @@ export function App() {
         
         <div className={`pipeline-node ${activeStep === 'EXTRACTION' ? 'active' : (intelligence ? 'completed' : 'pending')}`}>
           <div className="pipeline-node-icon">🧠</div>
-          <div className="pipeline-node-title">AI Intelligence</div>
+          <div className="pipeline-node-title">Venture Intelligence</div>
           <span className={`pipeline-node-status ${activeStep === 'EXTRACTION' ? 'active' : (intelligence ? 'completed' : 'pending')}`}>
             {activeStep === 'EXTRACTION' ? 'active' : (intelligence ? 'completed' : 'pending')}
+          </span>
+        </div>
+        <div className="pipeline-connector">➔</div>
+
+        <div className={`pipeline-node ${activeStep === 'QA' ? 'active' : (questions.length > 0 && Object.keys(answers).length >= questions.length ? 'completed' : 'pending')}`}>
+          <div className="pipeline-node-icon">💬</div>
+          <div className="pipeline-node-title">Founder Q&amp;A</div>
+          <span className={`pipeline-node-status ${activeStep === 'QA' ? 'active' : (questions.length > 0 && Object.keys(answers).length >= questions.length ? 'completed' : 'pending')}`}>
+            {activeStep === 'QA' ? 'active' : (questions.length > 0 && Object.keys(answers).length >= questions.length ? 'completed' : 'pending')}
           </span>
         </div>
         <div className="pipeline-connector">➔</div>
@@ -198,22 +461,25 @@ export function App() {
       {/* Golden Path Step Navigation */}
       <nav className="golden-path-nav">
         <button className={`step-btn ${activeStep === 'PROFILE' ? 'active' : ''}`} onClick={() => setActiveStep('PROFILE')}>
-          1. Profile &amp; Evidence
+          1. Ingestion &amp; Upload
         </button>
-        <button className={`step-btn ${activeStep === 'EXTRACTION' ? 'active' : ''}`} onClick={() => setActiveStep('EXTRACTION')}>
-          2. 10-Vector Intelligence
+        <button className={`step-btn ${activeStep === 'EXTRACTION' ? 'active' : ''}`} onClick={() => setActiveStep('EXTRACTION')} disabled={!intelligence}>
+          2. Venture Intelligence
         </button>
-        <button className={`step-btn ${activeStep === 'GENERATION' ? 'active' : ''}`} onClick={() => setActiveStep('GENERATION')}>
-          3. Multi-Stage 10-Slide Deck
+        <button className={`step-btn ${activeStep === 'QA' ? 'active' : ''}`} onClick={() => setActiveStep('QA')} disabled={!intelligence}>
+          3. Founder Q&amp;A
         </button>
-        <button className={`step-btn ${activeStep === 'EVALUATION' ? 'active' : ''}`} onClick={() => setActiveStep('EVALUATION')}>
-          4. 4-Vector Evaluation
+        <button className={`step-btn ${activeStep === 'GENERATION' ? 'active' : ''}`} onClick={() => setActiveStep('GENERATION')} disabled={!pitchDeck}>
+          4. Grounded Synthesis
         </button>
-        <button className={`step-btn ${activeStep === 'REGENERATION' ? 'active' : ''}`} onClick={() => setActiveStep('REGENERATION')}>
-          5. Targeted Regeneration
+        <button className={`step-btn ${activeStep === 'EVALUATION' ? 'active' : ''}`} onClick={() => setActiveStep('EVALUATION')} disabled={!evaluation}>
+          5. Quality Gate
         </button>
-        <button className={`step-btn ${activeStep === 'EXPORT' ? 'active' : ''}`} onClick={() => setActiveStep('EXPORT')}>
-          6. Export Presentation
+        <button className={`step-btn ${activeStep === 'REGENERATION' ? 'active' : ''}`} onClick={() => setActiveStep('REGENERATION')} disabled={!evaluation}>
+          6. Targeted Regen
+        </button>
+        <button className={`step-btn ${activeStep === 'EXPORT' ? 'active' : ''}`} onClick={() => setActiveStep('EXPORT')} disabled={!pitchDeck}>
+          7. Export Deck
         </button>
       </nav>
 
@@ -222,6 +488,11 @@ export function App() {
         <div className="card" style={{ border: '1px solid var(--primary)', textAlign: 'center', padding: '32px' }}>
           <div style={{ fontSize: '1.2rem', fontWeight: 600, color: 'var(--primary)' }}>⚙️ Processing API Request...</div>
           <p style={{ marginTop: '8px', color: 'var(--text-muted)' }}>{statusMessage}</p>
+          {uploadProgress != null && (
+            <div style={{ marginTop: '12px', background: 'rgba(255,255,255,0.1)', height: '8px', borderRadius: '4px', overflow: 'hidden', width: '200px', margin: '12px auto' }}>
+              <div style={{ background: 'var(--primary)', height: '100%', width: `${uploadProgress}%`, transition: 'width 0.2s' }}></div>
+            </div>
+          )}
         </div>
       )}
 
@@ -237,71 +508,216 @@ export function App() {
       {!loading && activeStep === 'PROFILE' && (
         <main className="card">
           <div className="card-title">
-            <span>Startup Profile &amp; Supporting Evidence</span>
+            <span>Turn your venture into an investor-ready story.</span>
             <span className="tag tag-primary">Step 1 — Ingestion</span>
           </div>
           
-          <div style={{ marginBottom: '20px', padding: '12px 16px', background: 'rgba(99, 102, 241, 0.08)', borderLeft: '4px solid var(--primary)', borderRadius: '0 8px 8px 0', fontSize: '0.9rem', color: 'var(--text-muted)' }}>
-            <strong>Hero Demo Strategy:</strong> We are demonstrating Fundable AI using our own product, <strong>ScoutEdge</strong>, as the first real-world validation case. ScoutEdge is an autonomous AI pitch intelligence and VC scouting platform. This shows the platform resolving messy startup files into a cohesive investor narrative.
+          <p style={{ color: 'var(--text-muted)', marginBottom: '24px' }}>
+            Upload your existing pitch deck. Fundable AI extracts your venture intelligence, asks what it still needs to know, and builds a grounded 10-slide investor presentation.
+          </p>
+
+          <div className="grid-2" style={{ gap: '32px' }}>
+            {/* Primary Document Upload Area */}
+            <div className="slide-card" style={{ padding: '32px', textAlign: 'center', border: '2px dashed var(--border-card)', background: 'rgba(255,255,255,0.01)', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', minHeight: '220px' }}>
+              <div style={{ fontSize: '2.5rem', marginBottom: '12px' }}>📁</div>
+              <h4>Upload Venture Deck or Materials</h4>
+              <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: '8px 0 16px 0' }}>Supports PDF, TXT, or MD documents up to 10MB</p>
+              
+              <label className="btn-primary" style={{ cursor: 'pointer', display: 'inline-block' }}>
+                Select File
+                <input type="file" accept=".pdf,.txt,.md" onChange={handleFileUpload} style={{ display: 'none' }} />
+              </label>
+
+              {fileName && (
+                <div style={{ marginTop: '12px', fontSize: '0.85rem', color: 'var(--success)' }}>
+                  Selected: {fileName} ({Math.round(extractedTextLength / 1024)} KB read)
+                </div>
+              )}
+            </div>
+
+            {/* Alternative Entry Options */}
+            <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+              <div className="slide-card" style={{ padding: '20px' }}>
+                <h4>Option A: Try ScoutEdge Demo</h4>
+                <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', margin: '6px 0 12px 0' }}>
+                  Evaluate the platform immediately using our pre-seeded venture profile for ScoutEdge.
+                </p>
+                <button className="btn-primary" onClick={loadScoutEdge}>
+                  Launch ScoutEdge Demo 🚀
+                </button>
+              </div>
+
+              <div className="slide-card" style={{ padding: '20px' }}>
+                <h4>Option B: Start from Scratch</h4>
+                <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', margin: '6px 0 12px 0' }}>
+                  Create a custom profile manually and let the AI extract templates.
+                </p>
+                <button className="btn-primary" style={{ background: 'transparent', border: '1px solid var(--primary)', color: 'var(--primary)' }} onClick={handleStartFromScratch}>
+                  Start Blank Profile ✏️
+                </button>
+              </div>
+            </div>
           </div>
 
-          <div className="grid-2">
-            <div>
-              <h3>Company Metadata</h3>
-              <p style={{ marginTop: '8px', color: 'var(--text-main)' }}>Name: <strong>{startupProfile?.name || 'ScoutEdge'}</strong></p>
-              <p style={{ color: 'var(--text-muted)', marginTop: '4px' }}>Tagline: {startupProfile?.tagline || 'Autonomous AI Pitch Intelligence & VC Scouting'}</p>
-              <p style={{ color: 'var(--text-muted)', marginTop: '4px' }}>Stage: {startupProfile?.stage || 'Pre-Seed'}</p>
-              <p style={{ color: 'var(--text-muted)', marginTop: '4px' }}>Target Raise: ${startupProfile?.targetRaise?.toLocaleString() || '1,500,000'}</p>
+          {startupProfile && (
+            <div className="slide-card" style={{ marginTop: '24px', border: '1px solid var(--primary)' }}>
+              <h4>Active Workspace Context</h4>
+              <p style={{ marginTop: '8px', fontSize: '0.9rem', color: 'var(--text-muted)' }}>
+                Venture Name: <strong style={{ color: 'var(--text-main)' }}>{startupProfile.name}</strong> &nbsp;|&nbsp;
+                Tagline: <em>{startupProfile.tagline}</em> &nbsp;|&nbsp;
+                Target Raise: <strong>${startupProfile.targetRaise.toLocaleString()}</strong>
+              </p>
+              <div style={{ marginTop: '16px', textAlign: 'right' }}>
+                <button className="btn-primary" onClick={handleExtractIntelligence}>
+                  Run 10-Vector Extraction &rarr;
+                </button>
+              </div>
             </div>
-            <div>
-              <h3>Ingested Documents (Cloud Storage)</h3>
-              <ul style={{ marginTop: '8px', listStyle: 'none' }}>
-                <li style={{ padding: '8px', background: 'rgba(255,255,255,0.05)', borderRadius: '6px', marginBottom: '6px' }}>
-                  📄 ScoutEdge_Pitch_Deck_Draft.pdf <span className="tag tag-success" style={{ float: 'right' }}>Indexed</span>
-                </li>
-                <li style={{ padding: '8px', background: 'rgba(255,255,255,0.05)', borderRadius: '6px', marginBottom: '6px' }}>
-                  📊 ScoutEdge_Financials.xlsx <span className="tag tag-success" style={{ float: 'right' }}>Indexed</span>
-                </li>
-              </ul>
-            </div>
-          </div>
-          <div style={{ marginTop: '24px', textAlign: 'right' }}>
-            <button className="btn-primary" onClick={handleExtractIntelligence}>
-              Run 10-Vector Extraction &rarr;
-            </button>
-          </div>
+          )}
         </main>
       )}
 
-      {/* Step 2: 10-Vector Entity Intelligence */}
+      {/* Step 2: Extracted Startup Intelligence Vectors */}
       {!loading && activeStep === 'EXTRACTION' && (
         <main className="card">
           <div className="card-title">
-            <span>Extracted Startup Intelligence (10 Business Vectors)</span>
-            <span className="tag tag-success">Stage 2 &amp; 3 Complete</span>
+            <span>Venture Intelligence Model (10 Business Vectors)</span>
+            <span className="tag tag-success">Stage 2 — Extracted</span>
           </div>
+
+          <div style={{ marginBottom: '20px', padding: '12px 16px', background: 'rgba(16, 185, 129, 0.08)', borderLeft: '4px solid var(--success)', borderRadius: '0 8px 8px 0', fontSize: '0.9rem', color: 'var(--text-muted)' }}>
+            <strong>Extraction Complete</strong>: Gemini parsed the uploaded evidence, resolved the business context, and indexed these 10 structured vectors. Check the evidence tags for grounding state.
+          </div>
+
           <div className="grid-2">
-            {intelligence?.entities && Object.entries(intelligence.entities).map(([key, val]: [string, any], idx) => (
-              <div key={idx} className="slide-card">
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
-                  <strong style={{ textTransform: 'capitalize' }}>{idx + 1}. {key}</strong>
-                  <span className="tag tag-primary">Evidence Verified</span>
+            {intelligence?.entities && Object.entries(intelligence.entities).map(([key, val]: [string, any], idx) => {
+              // Determine status indicator tag
+              const hasEvidence = val.groundingEvidenceIds && val.groundingEvidenceIds.length > 0;
+              const isConfirmed = val.statement?.includes('(Clarification:') || val.ask?.includes('(Refined:');
+              
+              let statusTag = <span className="tag tag-warning">Needs Clarification</span>;
+              if (isConfirmed) {
+                statusTag = <span className="tag tag-primary">✓ Founder Confirmed</span>;
+              } else if (hasEvidence) {
+                statusTag = <span className="tag tag-success">✓ Strong Evidence</span>;
+              }
+
+              return (
+                <div key={idx} className="slide-card" style={{ position: 'relative' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                    <strong style={{ textTransform: 'capitalize' }}>{idx + 1}. {key}</strong>
+                    {statusTag}
+                  </div>
+                  <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', lineHeight: '1.4' }}>
+                    {val.statement || val.ask || `Burn Rate: $${val.burnRate || 0}/mo | Runway: ${val.runwayMonths || 0} months | Projected ARR: $${val.projectedARR || 0}`}
+                  </p>
                 </div>
-                <p style={{ fontSize: '0.9rem', color: 'var(--text-muted)' }}>
-                  {val.statement || val.ask || `Burn: $${val.burnRate || 15000}/mo | Runway: ${val.runwayMonths || 10} mos`}
-                </p>
-              </div>
-            ))}
+              );
+            })}
           </div>
-          <div style={{ marginTop: '24px', textAlign: 'right' }}>
-            <button className="btn-primary" onClick={handleGenerateDeck}>
-              Synthesize 10-Slide Investor Deck &rarr;
+
+          <div style={{ marginTop: '24px', display: 'flex', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap' }}>
+            <button className="btn-primary" style={{ background: 'transparent', border: '1px solid var(--border-card)', color: 'var(--text-main)' }} onClick={() => setActiveStep('PROFILE')}>
+              &larr; Re-Ingest Documents
+            </button>
+            <button className="btn-primary" style={{ background: 'transparent', border: '1px solid var(--primary)', color: 'var(--primary)' }} onClick={handleGenerateDeck}>
+              Skip Q&amp;A &amp; Generate Deck &rarr;
+            </button>
+            <button className="btn-primary" onClick={handleStartQA}>
+              Enter Founder Q&amp;A Interview &rarr;
             </button>
           </div>
         </main>
       )}
 
-      {/* Step 3: Multi-Stage 10-Slide Deck */}
+      {/* Step 3: Interactive Founder Q&A */}
+      {!loading && activeStep === 'QA' && questions.length > 0 && (
+        <main className="card">
+          <div className="card-title">
+            <span>Founder Q&amp;A Interview</span>
+            <span className="tag tag-warning">Question {currentQuestionIndex + 1} of {questions.length}</span>
+          </div>
+
+          <div style={{ marginBottom: '20px', padding: '12px 16px', background: 'rgba(245, 158, 11, 0.08)', borderLeft: '4px solid var(--warning)', borderRadius: '0 8px 8px 0', fontSize: '0.9rem', color: 'var(--text-muted)' }}>
+            <strong>AI Quality Check</strong>: Gemini detected gaps in the extracted metrics. Clarify the details below to refine the final pitch synthesis.
+          </div>
+
+          {/* Render Active Question Card */}
+          {questions[currentQuestionIndex] && (
+            <div className="slide-card" style={{ padding: '24px', border: '1px solid var(--border-card)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                <span className="tag tag-primary" style={{ textTransform: 'uppercase' }}>
+                  Focus: {questions[currentQuestionIndex].relatedVector}
+                </span>
+                <span className="tag tag-warning" style={{ textTransform: 'uppercase' }}>
+                  Priority: {questions[currentQuestionIndex].priority}
+                </span>
+              </div>
+              
+              <h3 style={{ margin: '12px 0 6px 0', color: 'var(--text-main)' }}>
+                {questions[currentQuestionIndex].question}
+              </h3>
+              
+              <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '20px', fontStyle: 'italic' }}>
+                <strong>Why this matters to VCs:</strong> {questions[currentQuestionIndex].reason}
+              </p>
+
+              <div style={{ margin: '16px 0' }}>
+                <textarea
+                  className="slide-card"
+                  style={{ width: '100%', minHeight: '100px', padding: '12px', background: 'rgba(0,0,0,0.2)', color: 'var(--text-main)', border: '1px solid var(--border-card)', borderRadius: '8px', outline: 'none', resize: 'vertical', fontFamily: 'var(--font-family)', fontSize: '0.9rem' }}
+                  placeholder={questions[currentQuestionIndex].suggestedFormat ? `Suggested Format: ${questions[currentQuestionIndex].suggestedFormat}` : 'Enter your clarification answer here...'}
+                  value={answers[questions[currentQuestionIndex].questionId] || ''}
+                  onChange={(e) => setAnswers(prev => ({ ...prev, [questions[currentQuestionIndex].questionId]: e.target.value }))}
+                />
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '16px' }}>
+                <button
+                  className="btn-primary"
+                  style={{ background: 'transparent', border: '1px solid var(--border-card)', color: 'var(--text-muted)' }}
+                  onClick={handlePrevQuestion}
+                  disabled={currentQuestionIndex === 0}
+                >
+                  &larr; Previous Question
+                </button>
+                
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button
+                    className="btn-primary"
+                    style={{ background: 'transparent', border: '1px solid var(--warning)', color: 'var(--warning)' }}
+                    onClick={() => handleSkipQuestion(questions[currentQuestionIndex].questionId)}
+                  >
+                    Skip Question ➔
+                  </button>
+                  <button
+                    className="btn-primary"
+                    onClick={() => handleAnswerSubmit(questions[currentQuestionIndex].questionId, answers[questions[currentQuestionIndex].questionId] || '')}
+                  >
+                    Save &amp; Next
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Progress Indicator */}
+          <div style={{ marginTop: '24px', background: 'rgba(255,255,255,0.05)', borderRadius: '8px', padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+              Interview Progress: {Math.round((Object.keys(answers).length / questions.length) * 100)}% ({Object.keys(answers).length} of {questions.length} answered)
+            </span>
+            <button
+              className="btn-primary"
+              style={{ background: 'linear-gradient(135deg, var(--success), var(--primary))' }}
+              onClick={handleFinishQA}
+            >
+              Refine Intelligence &amp; Synthesize Pitch &rarr;
+            </button>
+          </div>
+        </main>
+      )}
+
+      {/* Step 4: Multi-Stage 10-Slide Deck */}
       {!loading && activeStep === 'GENERATION' && (
         <main className="card">
           <div className="card-title">
@@ -330,7 +746,7 @@ export function App() {
         </main>
       )}
 
-      {/* Step 4: 4-Vector Evaluation Engine */}
+      {/* Step 5: 4-Vector Evaluation Engine */}
       {!loading && activeStep === 'EVALUATION' && (
         <main className="card">
           <div className="card-title">
@@ -385,7 +801,10 @@ export function App() {
             </div>
           )}
 
-          <div style={{ marginTop: '24px', textAlign: 'right' }}>
+          <div style={{ marginTop: '24px', display: 'flex', justifyContent: 'space-between' }}>
+            <button className="btn-primary" style={{ background: 'transparent', border: '1px solid var(--border-card)', color: 'var(--text-main)' }} onClick={() => setActiveStep('GENERATION')}>
+              &larr; Back to Slides
+            </button>
             <button className="btn-primary" onClick={handleTargetedRegeneration}>
               Run Targeted Slide Regeneration &rarr;
             </button>
@@ -393,7 +812,7 @@ export function App() {
         </main>
       )}
 
-      {/* Step 5: Targeted Slide Regeneration */}
+      {/* Step 6: Targeted Slide Regeneration */}
       {!loading && activeStep === 'REGENERATION' && (
         <main className="card">
           <div className="card-title">
@@ -422,7 +841,10 @@ export function App() {
               <p>No slides to display.</p>
             )}
           </div>
-          <div style={{ marginTop: '24px', textAlign: 'right' }}>
+          <div style={{ marginTop: '24px', display: 'flex', justifyContent: 'space-between' }}>
+            <button className="btn-primary" style={{ background: 'transparent', border: '1px solid var(--border-card)', color: 'var(--text-main)' }} onClick={() => setActiveStep('EVALUATION')}>
+              &larr; Back to Evaluation
+            </button>
             <button className="btn-primary" onClick={() => setActiveStep('EXPORT')}>
               View Final Presentation &amp; Export &rarr;
             </button>
@@ -430,7 +852,7 @@ export function App() {
         </main>
       )}
 
-      {/* Step 6: Export Presentation */}
+      {/* Step 7: Export Presentation */}
       {!loading && activeStep === 'EXPORT' && (
         <main className="card">
           <div className="card-title">
@@ -447,7 +869,7 @@ export function App() {
                 Google Slides API integration is architected but not available in the temporary Code Kitchen sandbox.
               </p>
               <button className="btn-primary" onClick={() => alert('Google Slides API is not available in the Code Kitchen sandbox environment. The API contract is defined and ready for production integration.')}>
-                Google Slides API (Sandbox Unavailable) 📊
+                Google Slides (Sandbox Unavailable) 📊
               </button>
             </div>
             <div className="slide-card" style={{ textAlign: 'center', padding: '32px' }}>
@@ -455,7 +877,7 @@ export function App() {
               <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', margin: '12px 0' }}>
                 Generates a 10-page binary PDF document containing all slide details, speaker notes, and verified evidence references.
               </p>
-              <button className="btn-primary" onClick={() => window.open('/api/exports/deck_scoutedge_v1/pdf/download', '_blank')}>
+              <button className="btn-primary" onClick={() => window.open(`/api/exports/${pitchDeck?.deckId || 'deck_scoutedge_v1'}/pdf/download`, '_blank')}>
                 Download PDF Document 📄
               </button>
             </div>

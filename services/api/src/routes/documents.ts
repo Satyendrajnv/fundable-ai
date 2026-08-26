@@ -95,5 +95,9 @@ documentsRouter.post('/:startupId', async (req: Request, res: Response) => {
   currentDocs.push(parseResult.data);
   documentsStore.set(req.params.startupId, currentDocs);
 
+  // Sync with shared session store
+  const { sessionStore } = await import('../services/session-store.js');
+  sessionStore.addDocument(req.params.startupId, parseResult.data);
+
   res.status(201).json({ document: parseResult.data, storageStatus });
 });

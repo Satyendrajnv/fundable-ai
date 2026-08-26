@@ -8,10 +8,14 @@
  * In production, this would be backed by Firestore with TTL.
  */
 
-import { StartupEntity, PitchDeck, EvaluationResult } from '@fundable-ai/core-types';
+import { StartupEntity, PitchDeck, EvaluationResult, StartupProfile, StartupEvidence, Question, FounderAnswer } from '@fundable-ai/core-types';
 
 interface SessionData {
+  startupProfile?: StartupProfile;
+  documents?: StartupEvidence[];
   intelligence?: StartupEntity;
+  questions?: Question[];
+  answers?: FounderAnswer[];
   deck?: PitchDeck;
   evaluation?: EvaluationResult;
 }
@@ -21,9 +25,53 @@ class PipelineSessionStore {
 
   getSession(startupId: string): SessionData {
     if (!this.sessions.has(startupId)) {
-      this.sessions.set(startupId, {});
+      this.sessions.set(startupId, {
+        documents: [],
+        answers: []
+      });
     }
     return this.sessions.get(startupId)!;
+  }
+
+  setStartupProfile(startupId: string, profile: StartupProfile): void {
+    const session = this.getSession(startupId);
+    session.startupProfile = profile;
+    console.log(`[SessionStore] Profile stored for ${startupId}`);
+  }
+
+  getStartupProfile(startupId: string): StartupProfile | undefined {
+    return this.getSession(startupId).startupProfile;
+  }
+
+  addDocument(startupId: string, doc: StartupEvidence): void {
+    const session = this.getSession(startupId);
+    if (!session.documents) session.documents = [];
+    session.documents.push(doc);
+    console.log(`[SessionStore] Document added for ${startupId}: ${doc.fileName}`);
+  }
+
+  getDocuments(startupId: string): StartupEvidence[] {
+    return this.getSession(startupId).documents || [];
+  }
+
+  setQuestions(startupId: string, questions: Question[]): void {
+    const session = this.getSession(startupId);
+    session.questions = questions;
+    console.log(`[SessionStore] ${questions.length} questions stored for ${startupId}`);
+  }
+
+  getQuestions(startupId: string): Question[] | undefined {
+    return this.getSession(startupId).questions;
+  }
+
+  setAnswers(startupId: string, answers: FounderAnswer[]): void {
+    const session = this.getSession(startupId);
+    session.answers = answers;
+    console.log(`[SessionStore] ${answers.length} answers stored for ${startupId}`);
+  }
+
+  getAnswers(startupId: string): FounderAnswer[] {
+    return this.getSession(startupId).answers || [];
   }
 
   setIntelligence(startupId: string, intelligence: StartupEntity): void {
@@ -77,3 +125,4 @@ class PipelineSessionStore {
 
 // Singleton instance shared across all routes
 export const sessionStore = new PipelineSessionStore();
+

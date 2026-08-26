@@ -206,3 +206,46 @@ export const ExportJobSchema = z.object({
 });
 
 export type ExportJob = z.infer<typeof ExportJobSchema>;
+
+// ============================================================================
+// 7. Founder Q&A Schemas
+// ============================================================================
+export const QuestionSchema = z.object({
+  questionId: z.string().min(1),
+  question: z.string().min(1),
+  reason: z.string().min(1),
+  relatedVector: z.enum([
+    'problem',
+    'icp',
+    'valueProposition',
+    'solution',
+    'businessModel',
+    'gtm',
+    'traction',
+    'competition',
+    'financials',
+    'fundraising'
+  ]),
+  priority: z.enum(['HIGH', 'MEDIUM', 'LOW']),
+  suggestedFormat: z.string().optional()
+});
+
+export type Question = z.infer<typeof QuestionSchema>;
+
+export const FounderAnswerSchema = z.object({
+  questionId: z.string().min(1),
+  answer: z.string().min(1),
+  skipped: z.boolean().default(false)
+});
+
+export type FounderAnswer = z.infer<typeof FounderAnswerSchema>;
+
+export const StartupQASchema = z.object({
+  startupId: z.string().min(1),
+  questions: z.array(QuestionSchema),
+  answers: z.array(FounderAnswerSchema).default([]),
+  completedAt: z.string().optional()
+});
+
+export type StartupQA = z.infer<typeof StartupQASchema>;
+
