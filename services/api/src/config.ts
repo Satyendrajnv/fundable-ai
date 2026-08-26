@@ -13,8 +13,9 @@ export const EnvironmentConfigSchema = z.object({
   GCS_BUCKET_DOCUMENTS: z.string().default('fundable-ai-documents-dev'),
   GCS_BUCKET_EXPORTS: z.string().default('fundable-ai-exports-dev'),
   VERTEX_AI_LOCATION: z.string().default('us-central1'),
-  GEMINI_MODEL_EXTRACTION: z.string().default('gemini-2.0-flash-001'),
-  GEMINI_MODEL_GENERATION: z.string().default('gemini-2.0-flash-001'),
+  GEMINI_MODEL_EXTRACTION: z.string().default('gemini-3.6-flash'),
+  GEMINI_MODEL_GENERATION: z.string().default('gemini-3.6-flash'),
+  GEMINI_API_KEY: z.string().optional(),
   ENABLE_MOCK_GCP: z.string().transform((val) => val === 'true').default('true')
 });
 

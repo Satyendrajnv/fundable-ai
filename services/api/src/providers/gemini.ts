@@ -22,6 +22,9 @@ export interface GeminiProvider {
 }
 
 function getAIClient(): GoogleGenAI {
+  if (config.GEMINI_API_KEY) {
+    return new GoogleGenAI({ apiKey: config.GEMINI_API_KEY });
+  }
   return new GoogleGenAI({
     vertexai: true,
     project: config.GCP_PROJECT_ID,
@@ -39,7 +42,7 @@ async function callGemini(prompt: string, model: string): Promise<string> {
     },
   });
   const text = response.text;
-  if (!text) throw new Error('Empty response from Vertex AI Gemini');
+  if (!text) throw new Error('Empty response from Gemini');
   return text;
 }
 
