@@ -3,6 +3,7 @@ import { EvaluationPipeline } from '../pipeline/evaluation.js';
 import { RegenerationPipeline } from '../pipeline/regeneration.js';
 import { GenerationPipeline } from '../pipeline/generation.js';
 import { ExtractionPipeline } from '../pipeline/extraction.js';
+import { sessionStore } from '../services/session-store.js';
 
 export const evaluationsRouter = Router();
 
@@ -11,44 +12,20 @@ const regenPipeline = new RegenerationPipeline();
 const genPipeline = new GenerationPipeline();
 const extractPipeline = new ExtractionPipeline();
 
-const evaluationsStore = new Map<string, any>();
-const deckStore = new Map<string, any>();
-
 // GET /api/evaluations/:deckId
 evaluationsRouter.get('/:deckId', async (req: Request, res: Response) => {
-  let evalReport = evaluationsStore.get(req.params.deckId);
-  if (!evalReport) {
-    // Generate evaluation on the fly for demo deck
-    const mockProfile = {
-      startupId: 'scoutedge-001',
-      name: 'ScoutEdge',
-      tagline: 'Autonomous AI Pitch Intelligence',
-      founderId: 'founder_demo',
-      stage: 'Pre-Seed' as const,
-      targetRaise: 1500000,
-      currency: 'USD',
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    };
-    const intel = await extractPipeline.run(mockProfile, []);
-    const deck = await genPipeline.run(intel);
-    evalReport = await evalPipeline.run(deck, intel);
-    evaluationsStore.set(req.params.deckId, evalReport);
-    deckStore.set(req.params.deckId, deck);
-  }
-  res.status(200).json({ evaluation: evalReport });
-});
+  // Check if we have an existing evaluation for this deck
+  const startupId = sessionStore.getStartupIdByDeckId(req.params.deckId) || 'scoutedge-001';
+  let evaluation = sessionStore.getEvaluation(startupId);
 
-// POST /api/evaluations/:deckId/regenerate-slide — Trigger Targeted Slide Regeneration
-evaluationsRouter.post('/:deckId/regenerate-slide', async (req: Request, res: Response) => {
-  try {
-    const targetSlideNumbers: number[] = req.body.targetSlideNumbers || [6];
-    const critique = req.body.reason || 'Improve evidence grounding score for traction';
+  if (!evaluation) {
+    // Generate evaluation on the fly
+    let intelligence = sessionStore.getIntelligence(startupId);
+    let deck = sessionStore.getDeckByDeckId(req.params.deckId) || sessionStore.getDeck(startupId);
 
-    let deck = deckStore.get(req.params.deckId);
-    if (!deck) {
+    if (!intelligence) {
       const mockProfile = {
-        startupId: 'scoutedge-001',
+        startupId,
         name: 'ScoutEdge',
         tagline: 'Autonomous AI Pitch Intelligence',
         founderId: 'founder_demo',
@@ -58,21 +35,63 @@ evaluationsRouter.post('/:deckId/regenerate-slide', async (req: Request, res: Re
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
       };
-      const intel = await extractPipeline.run(mockProfile, []);
-      deck = await genPipeline.run(intel);
+      intelligence = await extractPipeline.run(mockProfile, []);
+      sessionStore.setIntelligence(startupId, intelligence);
+    }
+
+    if (!deck) {
+      deck = await genPipeline.run(intelligence);
+      sessionStore.setDeck(startupId, deck);
+    }
+
+    evaluation = await evalPipeline.run(deck, intelligence);
+    sessionStore.setEvaluation(startupId, evaluation);
+  }
+
+  res.status(200).json({ evaluation });
+});
+
+// POST /api/evaluations/:deckId/regenerate-slide — Trigger Targeted Slide Regeneration
+evaluationsRouter.post('/:deckId/regenerate-slide', async (req: Request, res: Response) => {
+  try {
+    const targetSlideNumbers: number[] = req.body.targetSlideNumbers || [6];
+    const critique = req.body.reason || 'Improve evidence grounding score for traction';
+    const startupId = sessionStore.getStartupIdByDeckId(req.params.deckId) || 'scoutedge-001';
+
+    let deck = sessionStore.getDeckByDeckId(req.params.deckId) || sessionStore.getDeck(startupId);
+    if (!deck) {
+      let intelligence = sessionStore.getIntelligence(startupId);
+      if (!intelligence) {
+        const mockProfile = {
+          startupId,
+          name: 'ScoutEdge',
+          tagline: 'Autonomous AI Pitch Intelligence',
+          founderId: 'founder_demo',
+          stage: 'Pre-Seed' as const,
+          targetRaise: 1500000,
+          currency: 'USD',
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        };
+        intelligence = await extractPipeline.run(mockProfile, []);
+        sessionStore.setIntelligence(startupId, intelligence);
+      }
+      deck = await genPipeline.run(intelligence);
+      sessionStore.setDeck(startupId, deck);
     }
 
     const { updatedDeck, newEvaluation } = await regenPipeline.run(deck, targetSlideNumbers, critique);
-    deckStore.set(req.params.deckId, updatedDeck);
-    evaluationsStore.set(req.params.deckId, newEvaluation);
+    sessionStore.setDeck(startupId, updatedDeck);
+    sessionStore.setEvaluation(startupId, newEvaluation);
 
     res.status(200).json({
       status: 'COMPLETED',
-      message: `Stage 7 Targeted Regeneration completed for slide(s): ${targetSlideNumbers.join(', ')}`,
+      message: `Targeted Regeneration completed for slide(s): ${targetSlideNumbers.join(', ')}`,
       updatedDeck,
       newEvaluation
     });
   } catch (err: any) {
+    console.error('[Evaluations Route] Regeneration failed:', err.message);
     res.status(500).json({ error: 'Regeneration failed', message: err.message });
   }
 });

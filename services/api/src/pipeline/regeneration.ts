@@ -1,69 +1,63 @@
 import { PitchDeck, PitchDeckSchema, EvaluationResult } from '@fundable-ai/core-types';
-import { EvaluationPipeline } from './evaluation.js';
-import { ExtractionPipeline } from './extraction.js';
+import { GeminiProvider, VertexGeminiProvider } from '../providers/gemini.js';
 
 export class RegenerationPipeline {
-  private evalPipeline: EvaluationPipeline;
-  private extractPipeline: ExtractionPipeline;
+  private provider: GeminiProvider;
 
-  constructor() {
-    this.evalPipeline = new EvaluationPipeline();
-    this.extractPipeline = new ExtractionPipeline();
+  constructor(provider?: GeminiProvider) {
+    this.provider = provider || new VertexGeminiProvider();
   }
 
+  /**
+   * Targeted Slide Regeneration Pipeline
+   * 
+   * Given a deck and specific slide numbers, regenerates ONLY the targeted slides
+   * using the Gemini provider while preserving all non-targeted slides unchanged.
+   * 
+   * Architecture:
+   *   1. Validate target slide numbers exist in deck
+   *   2. Route to GeminiProvider.regenerateSlide() (live Gemini + fallback)
+   *   3. Provider returns updated deck with only targeted slides modified
+   *   4. Validate output via Zod schema
+   *   5. Return updated deck + new evaluation
+   */
   async run(deck: PitchDeck, targetSlideNumbers: number[], critique: string): Promise<{ updatedDeck: PitchDeck; newEvaluation: EvaluationResult }> {
     if (targetSlideNumbers.length === 0) {
       throw new Error('Targeted regeneration error: At least one slide number must be targeted.');
     }
 
-    // Preserve original deck structure; isolate & update ONLY the target slide numbers
-    const updatedSlides = deck.slides.map(slide => {
-      if (targetSlideNumbers.includes(slide.slideNumber)) {
-        return {
-          ...slide,
-          headline: `${slide.title} — Verified & Refined (${critique})`,
-          confidence: Math.min(0.98, slide.confidence + 0.15),
-          bulletPoints: [
-            ...slide.bulletPoints,
-            `Targeted Refinement: ${critique}`,
-            'Re-evaluated against primary financial spreadsheet & pitch document evidence'
-          ],
-          evidenceReferences: [
-            ...slide.evidenceReferences,
-            'ScoutEdge_Financials.xlsx#RefinedGrounding',
-            'ScoutEdge_Pitch_Deck_Draft.pdf#VerifiedEvidence'
-          ],
-          evaluationMetadata: {
-            critique,
-            needsRegeneration: false
-          }
-        };
+    // Validate all target slide numbers exist in the deck
+    const validSlideNumbers = new Set(deck.slides.map(s => s.slideNumber));
+    for (const num of targetSlideNumbers) {
+      if (!validSlideNumbers.has(num)) {
+        throw new Error(`Targeted regeneration error: Slide ${num} does not exist in deck.`);
       }
-      return slide; // Unchanged slide
-    });
+    }
 
-    const updatedDeckData = {
-      ...deck,
-      version: deck.version + 1,
-      slides: updatedSlides,
-      updatedAt: new Date().toISOString()
-    };
+    console.log(`[RegenerationPipeline] Targeting slides ${targetSlideNumbers.join(', ')} with critique: "${critique}"`);
 
-    const updatedDeck = PitchDeckSchema.parse(updatedDeckData);
+    // Snapshot non-targeted slides for post-regeneration integrity check
+    const preservedSlides = deck.slides
+      .filter(s => !targetSlideNumbers.includes(s.slideNumber))
+      .map(s => ({ slideNumber: s.slideNumber, headline: s.headline, confidence: s.confidence }));
 
-    const mockProfile = {
-      startupId: deck.startupId,
-      name: 'ScoutEdge',
-      tagline: 'Autonomous AI Pitch Intelligence',
-      founderId: 'usr_123',
-      stage: 'Pre-Seed' as const,
-      targetRaise: 1500000,
-      currency: 'USD',
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    };
-    const intelligence = await this.extractPipeline.run(mockProfile, []);
-    const newEvaluation = await this.evalPipeline.run(updatedDeck, intelligence);
+    // Route through the Gemini provider (which has live AI + deterministic fallback)
+    const { updatedDeck, newEvaluation } = await this.provider.regenerateSlide(deck, targetSlideNumbers, critique);
+
+    // Verify non-targeted slides were preserved
+    for (const original of preservedSlides) {
+      const updated = updatedDeck.slides.find(s => s.slideNumber === original.slideNumber);
+      if (!updated) {
+        throw new Error(`Regeneration integrity error: Slide ${original.slideNumber} was lost during regeneration.`);
+      }
+    }
+
+    // Verify deck still has exactly 10 slides
+    if (updatedDeck.slides.length !== 10) {
+      throw new Error(`Regeneration contract error: Expected 10 slides, got ${updatedDeck.slides.length}`);
+    }
+
+    console.log(`[RegenerationPipeline] Complete. Deck version: v${updatedDeck.version}, Evaluation: ${newEvaluation.overallScore}/100`);
 
     return { updatedDeck, newEvaluation };
   }

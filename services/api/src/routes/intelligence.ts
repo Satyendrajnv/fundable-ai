@@ -1,14 +1,14 @@
 import { Router, Request, Response } from 'express';
 import { ExtractionPipeline } from '../pipeline/extraction.js';
+import { sessionStore } from '../services/session-store.js';
 
 export const intelligenceRouter = Router();
 
 const pipeline = new ExtractionPipeline();
-const intelligenceStore = new Map<string, any>();
 
 // GET /api/intelligence/:startupId
 intelligenceRouter.get('/:startupId', (req: Request, res: Response) => {
-  const intel = intelligenceStore.get(req.params.startupId);
+  const intel = sessionStore.getIntelligence(req.params.startupId);
   if (!intel) {
     return res.status(404).json({ error: `No intelligence extracted yet for startup '${req.params.startupId}'.` });
   }
@@ -22,10 +22,10 @@ intelligenceRouter.post('/:startupId/extract', async (req: Request, res: Respons
       startupId: req.params.startupId,
       name: req.body.name || 'ScoutEdge',
       tagline: req.body.tagline || 'Autonomous AI Pitch Intelligence',
-      founderId: 'founder_demo',
+      founderId: req.body.founderId || 'founder_demo',
       stage: req.body.stage || 'Pre-Seed',
       targetRaise: req.body.targetRaise || 1500000,
-      currency: 'USD',
+      currency: req.body.currency || 'USD',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     };
@@ -36,7 +36,7 @@ intelligenceRouter.post('/:startupId/extract', async (req: Request, res: Respons
         startupId: req.params.startupId,
         fileName: 'ScoutEdge_Pitch_Deck_Draft.pdf',
         fileType: 'pdf' as const,
-        gcsPath: `gs://fundable-ai-documents-dev/${req.params.startupId}/ScoutEdge_Pitch_Deck_Draft.pdf`,
+        gcsPath: `gs://fundable-ai-documents-qwiklabs/${req.params.startupId}/ScoutEdge_Pitch_Deck_Draft.pdf`,
         fileSizeBytes: 2450000,
         uploadedAt: new Date().toISOString(),
         processedStatus: 'COMPLETED' as const,
@@ -45,10 +45,11 @@ intelligenceRouter.post('/:startupId/extract', async (req: Request, res: Respons
     ];
 
     const intelligence = await pipeline.run(profile, evidence);
-    intelligenceStore.set(req.params.startupId, intelligence);
+    sessionStore.setIntelligence(req.params.startupId, intelligence);
 
     res.status(200).json({ status: 'COMPLETED', intelligence });
   } catch (err: any) {
+    console.error('[Intelligence Route] Extraction failed:', err.message);
     res.status(500).json({ error: 'Extraction failed', message: err.message });
   }
 });

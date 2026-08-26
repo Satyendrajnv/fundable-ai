@@ -6,6 +6,7 @@ export function App() {
   const [activeStep, setActiveStep] = useState<Step>('PROFILE');
   const [loading, setLoading] = useState<boolean>(false);
   const [statusMessage, setStatusMessage] = useState<string>('');
+  const [errorMessage, setErrorMessage] = useState<string>('');
 
   // Domain states populated from API
   const [startupProfile, setStartupProfile] = useState<any>(null);
@@ -28,6 +29,7 @@ export function App() {
   // Golden Path Handler 1: Trigger Stage 2 Extraction
   const handleExtractIntelligence = async () => {
     setLoading(true);
+    setErrorMessage('');
     setStatusMessage('Running Gemini 2.x Structured Entity Extraction across 10 VC vectors...');
     try {
       const res = await fetch('/api/intelligence/scoutedge-001/extract', { method: 'POST' });
@@ -37,7 +39,7 @@ export function App() {
         setActiveStep('EXTRACTION');
       }
     } catch (err) {
-      console.error(err);
+      setErrorMessage('Failed to extract: ' + (err instanceof Error ? err.message : 'Unknown error'));
     } finally {
       setLoading(false);
     }
@@ -46,6 +48,7 @@ export function App() {
   // Golden Path Handler 2: Trigger Stage 5 Multi-Stage Generation
   const handleGenerateDeck = async () => {
     setLoading(true);
+    setErrorMessage('');
     setStatusMessage('Synthesizing exactly 10 grounded investor slides via Gemini 2.x...');
     try {
       const res = await fetch('/api/pitches/scoutedge-001/generate', { method: 'POST' });
@@ -55,7 +58,7 @@ export function App() {
         setActiveStep('GENERATION');
       }
     } catch (err) {
-      console.error(err);
+      setErrorMessage('Failed to generate: ' + (err instanceof Error ? err.message : 'Unknown error'));
     } finally {
       setLoading(false);
     }
@@ -64,6 +67,7 @@ export function App() {
   // Golden Path Handler 3: Run Stage 6 Evaluation Engine
   const handleEvaluateDeck = async () => {
     setLoading(true);
+    setErrorMessage('');
     setStatusMessage('Running 4-Vector Evaluation Engine (Completeness, Consistency, Grounding, Readiness)...');
     try {
       const res = await fetch('/api/evaluations/deck_scoutedge_v1');
@@ -73,7 +77,7 @@ export function App() {
         setActiveStep('EVALUATION');
       }
     } catch (err) {
-      console.error(err);
+      setErrorMessage('Failed to evaluate: ' + (err instanceof Error ? err.message : 'Unknown error'));
     } finally {
       setLoading(false);
     }
@@ -82,6 +86,7 @@ export function App() {
   // Golden Path Handler 4: Trigger Stage 7 Targeted Regeneration
   const handleTargetedRegeneration = async () => {
     setLoading(true);
+    setErrorMessage('');
     setStatusMessage('Isolating Slide 6 (Traction) & Slide 9 (Financials) for targeted regeneration...');
     try {
       const res = await fetch('/api/evaluations/deck_scoutedge_v1/regenerate-slide', {
@@ -99,7 +104,7 @@ export function App() {
         setActiveStep('REGENERATION');
       }
     } catch (err) {
-      console.error(err);
+      setErrorMessage('Failed to regenerate: ' + (err instanceof Error ? err.message : 'Unknown error'));
     } finally {
       setLoading(false);
     }
@@ -123,8 +128,8 @@ export function App() {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
           <div>
             <strong style={{ color: 'var(--warning)' }}>AI PROVIDER STATUS:</strong> Vertex AI / Gemini 2.x &nbsp;|&nbsp;
-            <strong>STATUS:</strong> <span style={{ color: 'var(--warning)' }}>SANDBOX CONSTRAINED</span> &nbsp;|&nbsp;
-            <strong>EXECUTION:</strong> DETERMINISTIC FALLBACK &nbsp;|&nbsp;
+            <strong>STATUS:</strong> {intelligence?.intelligenceId?.includes('_live') ? <span style={{ color: 'var(--success)' }}>GEMINI LIVE</span> : <span style={{ color: 'var(--warning)' }}>SANDBOX CONSTRAINED</span>} &nbsp;|&nbsp;
+            <strong>EXECUTION:</strong> {intelligence?.intelligenceId?.includes('_live') ? 'Vertex AI / Gemini API' : 'DETERMINISTIC FALLBACK'} &nbsp;|&nbsp;
             <strong>CONTRACT:</strong> GeminiProvider-compatible
           </div>
           <span className="tag tag-warning">Provider Abstraction Active</span>
@@ -161,6 +166,14 @@ export function App() {
         <div className="card" style={{ border: '1px solid var(--primary)', textAlign: 'center', padding: '32px' }}>
           <div style={{ fontSize: '1.2rem', fontWeight: 600, color: 'var(--primary)' }}>⚙️ Processing API Request...</div>
           <p style={{ marginTop: '8px', color: 'var(--text-muted)' }}>{statusMessage}</p>
+        </div>
+      )}
+
+      {/* Error Message */}
+      {errorMessage && (
+        <div className="card" style={{ border: '1px solid red', padding: '16px', margin: '16px 0', background: 'rgba(255, 0, 0, 0.1)' }}>
+          <strong style={{ color: 'red' }}>Error:</strong>
+          <span style={{ color: 'red', marginLeft: '8px' }}>{errorMessage}</span>
         </div>
       )}
 
@@ -261,38 +274,56 @@ export function App() {
         <main className="card">
           <div className="card-title">
             <span>Automated 4-Vector Quality Evaluation Report</span>
-            <span className="tag tag-success">Overall Readiness: {evaluation?.overallScore || 89}/100</span>
+            <span className="tag tag-success">Overall Readiness: {evaluation?.overallScore || 'N/A'}/100</span>
           </div>
+
+          {evaluation?.readinessStatus && (
+            <div style={{ marginBottom: '16px' }}>
+              <strong>Status: </strong>
+              <span className={`tag ${evaluation.readinessStatus === 'PASSED' ? 'tag-success' : 'tag-warning'}`}>
+                {evaluation.readinessStatus}
+              </span>
+            </div>
+          )}
+
           <div className="grid-2">
             <div className="slide-card">
               <h4>Completeness Vector</h4>
-              <p className="tag tag-success" style={{ marginTop: '8px' }}>Score: {Math.round((evaluation?.metrics?.completeness || 1.0) * 100)}%</p>
-              <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '6px' }}>
-                All 10 mandatory VC pitch categories are present and fully populated.
+              <p className="tag tag-success" style={{ marginTop: '8px' }}>
+                Score: {evaluation?.metrics?.completeness != null ? `${Math.round(evaluation.metrics.completeness * 100)}%` : 'Pending...'}
               </p>
             </div>
             <div className="slide-card">
               <h4>Factual Consistency Vector</h4>
-              <p className="tag tag-success" style={{ marginTop: '8px' }}>Score: {Math.round((evaluation?.metrics?.factualConsistency || 0.92) * 100)}%</p>
-              <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '6px' }}>
-                Metrics on slides match extracted financial spreadsheet data ($12k ARR, $15k burn).
+              <p className="tag tag-success" style={{ marginTop: '8px' }}>
+                Score: {evaluation?.metrics?.factualConsistency != null ? `${Math.round(evaluation.metrics.factualConsistency * 100)}%` : 'Pending...'}
               </p>
             </div>
             <div className="slide-card">
               <h4>Evidence Grounding Vector</h4>
-              <p className="tag tag-primary" style={{ marginTop: '8px' }}>Score: {Math.round((evaluation?.metrics?.evidenceGrounding || 0.88) * 100)}%</p>
-              <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '6px' }}>
-                88% of claims linked directly to uploaded documents.
+              <p className="tag tag-primary" style={{ marginTop: '8px' }}>
+                Score: {evaluation?.metrics?.evidenceGrounding != null ? `${Math.round(evaluation.metrics.evidenceGrounding * 100)}%` : 'Pending...'}
               </p>
             </div>
             <div className="slide-card">
               <h4>Investor Readiness Vector</h4>
-              <p className="tag tag-primary" style={{ marginTop: '8px' }}>Score: {Math.round((evaluation?.metrics?.investorReadiness || 0.87) * 100)}%</p>
-              <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '6px' }}>
-                Narrative meets institutional early-stage VC review standards.
+              <p className="tag tag-primary" style={{ marginTop: '8px' }}>
+                Score: {evaluation?.metrics?.investorReadiness != null ? `${Math.round(evaluation.metrics.investorReadiness * 100)}%` : 'Pending...'}
               </p>
             </div>
           </div>
+          
+          {evaluation?.feedback && evaluation.feedback.length > 0 && (
+            <div style={{ marginTop: '24px' }}>
+              <h4>Evaluation Feedback</h4>
+              <ul style={{ marginTop: '8px', paddingLeft: '20px', color: 'var(--text-muted)' }}>
+                {evaluation.feedback.map((item: string, idx: number) => (
+                  <li key={idx} style={{ marginBottom: '4px' }}>{item}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+
           <div style={{ marginTop: '24px', textAlign: 'right' }}>
             <button className="btn-primary" onClick={handleTargetedRegeneration}>
               Run Targeted Slide Regeneration &rarr;
@@ -310,12 +341,25 @@ export function App() {
           </div>
           <p style={{ color: 'var(--text-muted)', marginBottom: '16px' }}>
             Instead of re-generating the whole deck, Fundable AI isolates weak slides (`&lt; 80` confidence) and re-evaluates only targeted sections.
+            <br />
+            <strong>Overall Readiness after refinement: {evaluation?.overallScore || 'N/A'}/100</strong>
           </p>
-          <div className="slide-card" style={{ borderColor: 'var(--warning)' }}>
-            <h4>Targeted Refinement: Slide 6 (Traction) &amp; Slide 9 (Financials)</h4>
-            <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '6px' }}>
-              Original Evidence Grounding: 76% &rarr; <strong style={{ color: 'var(--success)' }}>Refined Grounding: 96%</strong>
-            </p>
+          <div className="grid-3">
+            {pitchDeck?.slides ? pitchDeck.slides.map((slide: any) => {
+              const isTargeted = slide.slideNumber === 6 || slide.slideNumber === 9;
+              return (
+                <div key={slide.slideNumber} className="slide-card" style={isTargeted ? { borderColor: 'var(--warning)', borderWidth: '2px' } : {}}>
+                  <div style={{ fontSize: '0.8rem', color: isTargeted ? 'var(--warning)' : 'var(--primary)' }}>
+                    SLIDE {slide.slideNumber} OF 10 — {slide.category}
+                  </div>
+                  <h4 style={{ margin: '4px 0' }}>{slide.title}</h4>
+                  {slide.headline && <p style={{ fontSize: '0.85rem', marginBottom: '8px' }}>{slide.headline}</p>}
+                  <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Confidence: {Math.round(slide.confidence * 100)}% | Grounded</p>
+                </div>
+              );
+            }) : (
+              <p>No slides to display.</p>
+            )}
           </div>
           <div style={{ marginTop: '24px', textAlign: 'right' }}>
             <button className="btn-primary" onClick={() => setActiveStep('EXPORT')}>
@@ -337,12 +381,12 @@ export function App() {
           </p>
           <div className="grid-2">
             <div className="slide-card" style={{ textAlign: 'center', padding: '32px' }}>
-              <h3>Google Slides Export (Adapter)</h3>
+              <h3>Google Slides Export</h3>
               <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', margin: '12px 0' }}>
-                Google Slides API adapter contract payload preview.
+                Google Slides API integration is architected but not available in the temporary Code Kitchen sandbox.
               </p>
-              <button className="btn-primary" onClick={() => window.open('https://docs.google.com/presentation/d/demo_scoutedge-001/edit', '_blank')}>
-                Preview Google Slides Payload 📊
+              <button className="btn-primary" onClick={() => alert('Google Slides API is not available in the Code Kitchen sandbox environment. The API contract is defined and ready for production integration.')}>
+                Google Slides API (Sandbox Unavailable) 📊
               </button>
             </div>
             <div className="slide-card" style={{ textAlign: 'center', padding: '32px' }}>
