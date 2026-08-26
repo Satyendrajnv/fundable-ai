@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "tsx src/index.ts",
     "build": "tsc -b",
-    "test": "node --test dist/tests/*.test.js"
+    "test": "node --test dist/tests/api.test.js dist/tests/storage.test.js dist/tests/live-gcp-verify.test.js"
   },
   "dependencies": {
     "@fundable-ai/core-types": "*",
