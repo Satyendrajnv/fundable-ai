@@ -28,8 +28,9 @@ To ensure flexibility across different deployment environments, the platform use
 ## AI Pipeline Stages
 
 The generation process is broken down into modular pipelines:
-- **ExtractionPipeline**: Analyzes raw evidence documents to extract 10 structured business vectors (problem, solution, market size, etc.).
-- **GenerationPipeline**: Constructs a cohesive 10-slide pitch presentation based on the extracted intelligence. Enforces exactly 10 slides using structured outputs (Zod).
+- **ExtractionPipeline**: Analyzes raw evidence documents (PDFs, pasted text, MD) to extract 10 structured business vectors (problem, solution, market size, runway, etc.).
+- **InterviewPipeline / Q&A**: Uses Gemini to analyze extracted vectors, identify knowledge gaps, and formulate targeted questions. Merges answers to refine the venture profile.
+- **GenerationPipeline**: Constructs a cohesive 10-slide pitch presentation based on the refined intelligence. Enforces exactly 10 slides using structured outputs (Zod).
 - **EvaluationPipeline**: Scores the generated slides across 4 dimensions: Completeness, Factual Consistency, Evidence Grounding, and Investor Readiness.
 - **RegenerationPipeline**: Performs targeted, surgical refinement on specific slides that fall below a predefined quality threshold.
 

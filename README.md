@@ -21,13 +21,14 @@ flowchart TD
 ```
 
 ## AI Pipeline
-The AI generation process follows 6 discrete stages:
-1. **Evidence Ingestion** (Cloud Storage)
+The AI generation process follows 7 discrete stages:
+1. **Evidence Ingestion** (Cloud Storage / Memory Cache)
 2. **Startup Intelligence Extraction** (Gemini → 10 business vectors)
-3. **Grounded Pitch Generation** (Gemini → exactly 10 slides)
-4. **Quality Evaluation** (4-vector scoring)
-5. **Targeted Regeneration** (surgical slide refinement via Gemini)
-6. **Export** (binary PDF)
+3. **Founder Q&A Gap Resolution** (Gemini identifies gaps, founder provides answers to refine intelligence)
+4. **Grounded Pitch Generation** (Gemini → exactly 10 slides grounded in refined intelligence)
+5. **Quality Evaluation** (4-vector scoring engine)
+6. **Targeted Regeneration** (surgical slide refinement via Gemini)
+7. **Export** (binary PDF)
 
 ## Google Cloud Services
 | Service | Purpose | Status |
@@ -71,8 +72,10 @@ npm run dev --workspace=services/api
 | GET | `/api/startups` | List startup profiles |
 | POST | `/api/startups` | Create a new startup profile |
 | GET | `/api/startups/:id` | Get startup profile |
-| POST | `/api/documents/:startupId` | Upload evidence document |
+| POST | `/api/documents/:startupId` | Upload evidence document (PDF, TXT, MD) |
 | POST | `/api/intelligence/:startupId/extract` | Extract 10 intelligence vectors |
+| POST | `/api/intelligence/:startupId/questions` | Generate gaps-based interview questions |
+| POST | `/api/intelligence/:startupId/answers` | Submit answers and refine intelligence |
 | GET | `/api/pitches/:startupId` | Retrieve 10-slide deck |
 | POST | `/api/pitches/:startupId/generate` | Generate pitch deck |
 | GET | `/api/evaluations/:deckId` | Run 4-vector evaluation |
@@ -80,13 +83,14 @@ npm run dev --workspace=services/api
 | GET | `/api/exports/:deckId/pdf/download` | Download binary PDF |
 
 ## Demo Flow
-The ScoutEdge demo path demonstrates the full capabilities:
-1. **Create Startup**: Initialize the ScoutEdge profile.
-2. **Upload Evidence**: Provide financial and product PDFs.
-3. **Extract Intelligence**: Generate the 10 business vectors.
-4. **Generate Draft**: Produce the initial 10-slide pitch.
-5. **Evaluate & Refine**: Run the evaluation and trigger targeted regeneration on low-scoring slides.
-6. **Export**: Download the final PDF presentation.
+The 7-step wizard user journey:
+1. **Ingestion**: Upload a venture deck or paste venture text (e.g. AgroPulse).
+2. **Venture Intelligence**: Extract 10 business vectors from the source text.
+3. **Founder Q&A**: Gemini identifies gaps and asks structured questions; answers refine the context.
+4. **Grounded Synthesis**: Synthesize exactly 10 Zod-enforced slides.
+5. **Quality Gate**: Evaluate the deck across 4 key quality dimensions.
+6. **Targeted Regen**: Surgically regenerate Slide 6/9 while preserving the other slides.
+7. **Export**: Export the pitch to a binary PDF presentation.
 
 ## Known Sandbox Constraints
 For the purposes of the Code Kitchen sandbox environment:

@@ -9,7 +9,7 @@ Follow this runbook to record the 3-minute Code Kitchen selfie video for Fundabl
 * **Talking Points**:
   * "Hi, I'm Satyendra, founder and developer of Fundable AI.
   * Founders struggle to transform fragmented business metrics, raw pitch draft PDFs, and financial spreadsheet data into a cohesive investor narrative.
-  * Fundable AI is a cloud-native, serverless platform built on Google Cloud designed to ingest messy files and synthesize structured, evaluated, and evidence-grounded pitch presentations."
+  * Fundable AI is a cloud-native, serverless platform built on Google Cloud designed to ingest messy files and synthesize structured, evaluated, and evidence-grounded pitch presentations. Our core narrative is: *Don't give Fundable AI a form. Give it your existing pitch.*"
 
 ---
 
@@ -22,18 +22,19 @@ Follow this runbook to record the 3-minute Code Kitchen selfie video for Fundabl
 
 ---
 
-## 🕒 0:50–2:10 — Live Hero Demo (ScoutEdge)
-* **Visual**: Click through the 6 wizard steps interactively on the live Cloud Run application:
-  1. **Step 1 (Ingestion)**: Show the ScoutEdge profile metadata and the indexed documents stored in Cloud Storage. Explain that we are using our own product, ScoutEdge, as the first real-world validation case.
-  2. **Step 2 (Extraction)**: Click "Run 10-Vector Extraction". Show the 10 extracted business vector cards (Problem, ICP, Solution, Runway, Ask) returning live from Gemini.
-  3. **Step 3 (Synthesis)**: Click "Synthesize 10-Slide Investor Deck". Scroll through the Zod-enforced 10 slides. Point out the title, Category, and slide confidence scores.
-  4. **Step 4 (Evaluation)**: Click "Run Automated Evaluation Engine". Show the overall readiness score (e.g. 93/100) and the Completeness, Consistency, and Grounding metrics returning from the AI Quality Gate.
-  5. **Step 5 (Regeneration)**: Click "Run Targeted Slide Regeneration". Point out how Slides 6 and 9 are isolated and refined by Gemini based on critique feedback, while the other 8 slides remain 100% unchanged.
-  6. **Step 6 (Export)**: Click "Download PDF Document". Open the downloaded PDF showing a real 10-page binary document with titles, bullet points, speaker notes, and evidence references.
+## 🕒 0:50–2:20 — Live Hero Demo (Venture Ingestion to Pitch Generation)
+* **Visual**: Click through the 7 wizard steps interactively on the live application:
+  1. **Step 1 (Ingestion)**: Show the landing page with the two main entry points: **Option A (Upload Venture Deck)** and **Option B (Paste Venture Text)**. Paste the AgroPulse description into Option B: *"AgroPulse is building sensor-driven irrigation recommendations for small farms. We currently serve 127 paying farms and are raising ₹3 crore."* Explain that this creates a clean sandbox session and stores the text as a document.
+  2. **Step 2 (Venture Intelligence)**: Click *"Understand My Venture"*. Show the 10 extracted business vector cards (Problem, ICP, Solution, Runway, Ask) returning from Gemini. Explain that the AI has mapped these to the ingested AgroPulse text.
+  3. **Step 3 (Founder Q&A)**: Click *"Founder Q&A"*. Show the Q&A wizard asking targeted interview questions to fill knowledge gaps. Answer a question (e.g. business model) and show how the answer updates the venture intelligence context.
+  4. **Step 4 (Grounded Synthesis)**: Click *"Synthesize 10-Slide Investor Deck"*. Scroll through the Zod-enforced 10 slides. Point out the title, category, and slide confidence scores.
+  5. **Step 5 (Quality Gate)**: Click *"Run Automated Evaluation Engine"*. Show the overall readiness score and the Completeness, Consistency, Grounding, and Readiness metrics returning from the AI Quality Gate.
+  6. **Step 6 (Targeted Regen)**: Click *"Run Targeted Slide Regeneration"*. Point out how Slides 6 and 9 are isolated and refined by Gemini based on critique feedback, while the other 8 slides remain 100% unchanged.
+  7. **Step 7 (Export)**: Click *"Download PDF Document"*. Open the downloaded PDF showing a real 10-page binary document with titles, bullet points, speaker notes, and evidence references.
 
 ---
 
-## 🕒 2:10–2:40 — Core Differentiators
+## 🕒 2:20–2:40 — Core Differentiators
 * **Visual**: Hover over the visual pipeline flow diagram at the top of the interface.
 * **Talking Points**:
   * "What makes Fundable AI special are three core decisions:
