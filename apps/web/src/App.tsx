@@ -15,13 +15,17 @@ export function App() {
   const [evaluation, setEvaluation] = useState<any>(null);
 
   // User-First Flow states
-  const [activeStartupId, setActiveStartupId] = useState<string>('scoutedge-001');
+  const [activeStartupId, setActiveStartupId] = useState<string>('');
   const [questions, setQuestions] = useState<any[]>([]);
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState<number>(0);
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
   const [fileName, setFileName] = useState<string>('');
   const [extractedTextLength, setExtractedTextLength] = useState<number>(0);
+
+  // Pasted Text Flow states
+  const [pastedText, setPastedText] = useState<string>('');
+  const [pastedVentureName, setPastedVentureName] = useState<string>('');
 
   // Load initial ScoutEdge profile from backend API for demo
   const loadScoutEdge = () => {
@@ -30,7 +34,10 @@ export function App() {
     setStatusMessage('Loading ScoutEdge Seed Profile...');
     setActiveStartupId('scoutedge-001');
     fetch('/api/startups/scoutedge-001')
-      .then(res => res.json())
+      .then(res => {
+        if (!res.ok) throw new Error(`Failed to fetch: ${res.statusText}`);
+        return res.json();
+      })
       .then(data => {
         if (data.startup) {
           setStartupProfile(data.startup);
@@ -39,13 +46,14 @@ export function App() {
       })
       .catch(err => {
         console.error('Failed to fetch startup profile:', err);
-        setErrorMessage('Failed to fetch ScoutEdge profile.');
+        setErrorMessage('Failed to fetch ScoutEdge profile: ' + err.message);
       })
       .finally(() => setLoading(false));
   };
 
+  // We DO NOT load ScoutEdge by default on mount so the user has a clean landing screen.
   useEffect(() => {
-    loadScoutEdge();
+    // Start clean
   }, []);
 
   // Ingestion: Start from Scratch Option
@@ -75,12 +83,16 @@ export function App() {
         currency: 'USD'
       })
     })
+      .then(res => {
+        if (!res.ok) throw new Error(`Server returned code ${res.status}`);
+        return res.json();
+      })
       .then(() => {
         setActiveStep('PROFILE');
       })
       .catch(err => {
         console.error(err);
-        setErrorMessage('Failed to initialize start from scratch.');
+        setErrorMessage('Failed to initialize start from scratch: ' + err.message);
       })
       .finally(() => setLoading(false));
   };
@@ -127,12 +139,16 @@ export function App() {
         fileContent = await file.text();
       }
 
+      if (!fileContent || fileContent.trim().length === 0) {
+        throw new Error("We couldn't read any text from this file. Try another file or paste your venture information.");
+      }
+
       setExtractedTextLength(fileContent.length);
       setUploadProgress(70);
       setStatusMessage(`Ingesting parsed text into Cloud Storage...`);
 
       // Initialize startup profile on backend
-      await fetch('/api/startups', {
+      const profileRes = await fetch('/api/startups', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -145,8 +161,12 @@ export function App() {
           currency: 'USD'
         })
       });
+      if (!profileRes.ok) {
+        const errData = await profileRes.json().catch(() => ({}));
+        throw new Error(errData.error || `Failed to create profile session: ${profileRes.statusText}`);
+      }
 
-      // Upload text content to GCS via API
+      // Upload text content via API
       const response = await fetch(`/api/documents/${startupId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -157,7 +177,10 @@ export function App() {
         })
       });
 
-      if (!response.ok) throw new Error('Upload request failed');
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.error || `Upload request failed: ${response.statusText}`);
+      }
       
       setUploadProgress(90);
       setStatusMessage('Ingestion complete. Extracting 10 Venture Vectors...');
@@ -171,6 +194,12 @@ export function App() {
           tagline: 'Extracted from uploaded venture materials'
         })
       });
+      
+      if (!extractRes.ok) {
+        const errData = await extractRes.json().catch(() => ({}));
+        throw new Error(errData.error || `Extraction failed: ${extractRes.statusText}`);
+      }
+
       const extractData = await extractRes.json();
       if (extractData.intelligence) {
         setStartupProfile({
@@ -183,12 +212,99 @@ export function App() {
         });
         setIntelligence(extractData.intelligence);
         setActiveStep('EXTRACTION');
+      } else {
+        throw new Error("We couldn't understand the venture from this source. Please try adding more detail.");
       }
     } catch (err: any) {
-      setErrorMessage('Ingestion failed: ' + err.message);
+      setErrorMessage(err.message || 'Ingestion failed.');
     } finally {
       setLoading(false);
       setUploadProgress(null);
+    }
+  };
+
+  // Pasted Text Ingestion Handler (Option B)
+  const handlePasteSubmit = async () => {
+    if (!pastedText.trim()) return;
+
+    setLoading(true);
+    setErrorMessage('');
+    const vName = pastedVentureName.trim() || 'Custom Venture';
+    setStatusMessage(`Ingesting pasted text for ${vName}...`);
+
+    try {
+      const startupId = `startup_pasted_${Date.now()}`;
+      setActiveStartupId(startupId);
+
+      // Initialize startup profile on backend
+      const profileRes = await fetch('/api/startups', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          startupId,
+          name: vName,
+          tagline: 'Pasted venture information',
+          founderId: 'usr_custom_123',
+          stage: 'Seed',
+          targetRaise: 1000000,
+          currency: 'USD'
+        })
+      });
+      if (!profileRes.ok) {
+        const errData = await profileRes.json().catch(() => ({}));
+        throw new Error(errData.error || `Failed to create profile: ${profileRes.statusText}`);
+      }
+
+      // Upload text content via the documents API
+      const docRes = await fetch(`/api/documents/${startupId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fileName: 'pasted_evidence.txt',
+          fileContent: pastedText,
+          fileType: 'txt'
+        })
+      });
+      if (!docRes.ok) {
+        const errData = await docRes.json().catch(() => ({}));
+        throw new Error(errData.error || `Ingestion request failed: ${docRes.statusText}`);
+      }
+
+      setStatusMessage('Ingestion complete. Extracting 10 Venture Vectors...');
+
+      // Trigger intelligence extraction
+      const extractRes = await fetch(`/api/intelligence/${startupId}/extract`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: vName,
+          tagline: 'Pasted venture information'
+        })
+      });
+      if (!extractRes.ok) {
+        const errData = await extractRes.json().catch(() => ({}));
+        throw new Error(errData.error || `Extraction failed: ${extractRes.statusText}`);
+      }
+
+      const extractData = await extractRes.json();
+      if (extractData.intelligence) {
+        setStartupProfile({
+          startupId,
+          name: vName,
+          tagline: 'Pasted venture information',
+          stage: 'Seed',
+          targetRaise: 1000000,
+          currency: 'USD'
+        });
+        setIntelligence(extractData.intelligence);
+        setActiveStep('EXTRACTION');
+      } else {
+        throw new Error("We couldn't understand the venture from this source. Please try adding more detail.");
+      }
+    } catch (err: any) {
+      setErrorMessage(err.message || 'Ingestion failed.');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -206,13 +322,17 @@ export function App() {
           tagline: startupProfile?.tagline || 'Autonomous AI Pitch Intelligence & VC Scouting'
         })
       });
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || `Failed to extract: ${res.statusText}`);
+      }
       const data = await res.json();
       if (data.intelligence) {
         setIntelligence(data.intelligence);
         setActiveStep('EXTRACTION');
       }
-    } catch (err) {
-      setErrorMessage('Failed to extract: ' + (err instanceof Error ? err.message : 'Unknown error'));
+    } catch (err: any) {
+      setErrorMessage(err.message || 'Failed to extract.');
     } finally {
       setLoading(false);
     }
@@ -225,6 +345,10 @@ export function App() {
     setStatusMessage('Formulating structured founder interviews via Gemini...');
     try {
       const res = await fetch(`/api/intelligence/${activeStartupId}/questions`, { method: 'POST' });
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || `Failed to generate Q&A: ${res.statusText}`);
+      }
       const data = await res.json();
       if (data.questions && data.questions.length > 0) {
         setQuestions(data.questions);
@@ -278,12 +402,20 @@ export function App() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ answers: answerPayload })
       });
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || `Failed to submit answers: ${res.statusText}`);
+      }
       const data = await res.json();
       if (data.intelligence) {
         setIntelligence(data.intelligence);
         // Automatically generate deck after refining intelligence
         setStatusMessage('Answers applied. Generating 10 grounded presentation slides...');
         const genRes = await fetch(`/api/pitches/${activeStartupId}/generate`, { method: 'POST' });
+        if (!genRes.ok) {
+          const errData = await genRes.json().catch(() => ({}));
+          throw new Error(errData.error || `Deck generation failed: ${genRes.statusText}`);
+        }
         const genData = await genRes.json();
         if (genData.deck) {
           setPitchDeck(genData.deck);
@@ -304,13 +436,17 @@ export function App() {
     setStatusMessage('Synthesizing exactly 10 grounded investor slides via Gemini 2.x...');
     try {
       const res = await fetch(`/api/pitches/${activeStartupId}/generate`, { method: 'POST' });
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || `Synthesis failed: ${res.statusText}`);
+      }
       const data = await res.json();
       if (data.deck) {
         setPitchDeck(data.deck);
         setActiveStep('GENERATION');
       }
-    } catch (err) {
-      setErrorMessage('Failed to generate: ' + (err instanceof Error ? err.message : 'Unknown error'));
+    } catch (err: any) {
+      setErrorMessage(err.message || 'Failed to generate deck.');
     } finally {
       setLoading(false);
     }
@@ -324,13 +460,17 @@ export function App() {
     setStatusMessage('Running 4-Vector Evaluation Engine (Completeness, Consistency, Grounding, Readiness)...');
     try {
       const res = await fetch(`/api/evaluations/${pitchDeck.deckId}`);
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || `Evaluation failed: ${res.statusText}`);
+      }
       const data = await res.json();
       if (data.evaluation) {
         setEvaluation(data.evaluation);
         setActiveStep('EVALUATION');
       }
-    } catch (err) {
-      setErrorMessage('Failed to evaluate: ' + (err instanceof Error ? err.message : 'Unknown error'));
+    } catch (err: any) {
+      setErrorMessage(err.message || 'Failed to evaluate deck.');
     } finally {
       setLoading(false);
     }
@@ -351,14 +491,18 @@ export function App() {
           reason: 'Improve evidence grounding and financial consistency'
         })
       });
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || `Regeneration failed: ${res.statusText}`);
+      }
       const data = await res.json();
       if (data.updatedDeck) {
         setPitchDeck(data.updatedDeck);
         setEvaluation(data.newEvaluation);
         setActiveStep('REGENERATION');
       }
-    } catch (err) {
-      setErrorMessage('Failed to regenerate: ' + (err instanceof Error ? err.message : 'Unknown error'));
+    } catch (err: any) {
+      setErrorMessage(err.message || 'Failed to regenerate slides.');
     } finally {
       setLoading(false);
     }
@@ -513,49 +657,84 @@ export function App() {
           </div>
           
           <p style={{ color: 'var(--text-muted)', marginBottom: '24px' }}>
-            Upload your existing pitch deck. Fundable AI extracts your venture intelligence, asks what it still needs to know, and builds a grounded 10-slide investor presentation.
+            Provide your raw venture information. Fundable AI extracts your venture intelligence, identifies knowledge gaps, conducts founder Q&amp;A, and generates a grounded 10-slide investor presentation.
           </p>
 
           <div className="grid-2" style={{ gap: '32px' }}>
-            {/* Primary Document Upload Area */}
-            <div className="slide-card" style={{ padding: '32px', textAlign: 'center', border: '2px dashed var(--border-card)', background: 'rgba(255,255,255,0.01)', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', minHeight: '220px' }}>
-              <div style={{ fontSize: '2.5rem', marginBottom: '12px' }}>📁</div>
-              <h4>Upload Venture Deck or Materials</h4>
-              <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: '8px 0 16px 0' }}>Supports PDF, TXT, or MD documents up to 10MB</p>
-              
-              <label className="btn-primary" style={{ cursor: 'pointer', display: 'inline-block' }}>
-                Select File
-                <input type="file" accept=".pdf,.txt,.md" onChange={handleFileUpload} style={{ display: 'none' }} />
-              </label>
-
-              {fileName && (
-                <div style={{ marginTop: '12px', fontSize: '0.85rem', color: 'var(--success)' }}>
-                  Selected: {fileName} ({Math.round(extractedTextLength / 1024)} KB read)
+            {/* Primary Document Upload Area (Option A) */}
+            <div className="slide-card" style={{ padding: '24px', border: '1px solid var(--border-card)', background: 'rgba(255,255,255,0.01)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', marginBottom: '16px' }}>
+                  <span style={{ fontSize: '1.5rem', marginRight: '10px' }}>📁</span>
+                  <h4 style={{ margin: 0 }}>Option A: Upload Venture Deck</h4>
                 </div>
-              )}
+                <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '16px' }}>
+                  Upload PDF, TXT, or MD documents up to 10MB. Text will be parsed locally and ingested.
+                </p>
+              </div>
+              
+              <div style={{ border: '2px dashed var(--border-card)', padding: '32px', borderRadius: '8px', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', background: 'rgba(0,0,0,0.1)' }}>
+                <div style={{ fontSize: '2rem', marginBottom: '8px' }}>📤</div>
+                <label className="btn-primary" style={{ cursor: 'pointer', display: 'inline-block', marginBottom: '8px' }}>
+                  Select File
+                  <input type="file" accept=".pdf,.txt,.md" onChange={handleFileUpload} style={{ display: 'none' }} />
+                </label>
+                {fileName && (
+                  <div style={{ fontSize: '0.85rem', color: 'var(--success)', marginTop: '8px' }}>
+                    Selected: {fileName} ({Math.round(extractedTextLength / 1024)} KB read)
+                  </div>
+                )}
+              </div>
             </div>
 
-            {/* Alternative Entry Options */}
-            <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
-              <div className="slide-card" style={{ padding: '20px' }}>
-                <h4>Option A: Try ScoutEdge Demo</h4>
-                <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', margin: '6px 0 12px 0' }}>
-                  Evaluate the platform immediately using our pre-seeded venture profile for ScoutEdge.
+            {/* Paste Venture Text Area (Option B) */}
+            <div className="slide-card" style={{ padding: '24px', border: '1px solid var(--border-card)', background: 'rgba(255,255,255,0.01)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', marginBottom: '16px' }}>
+                  <span style={{ fontSize: '1.5rem', marginRight: '10px' }}>📝</span>
+                  <h4 style={{ margin: 0 }}>Option B: Paste Venture Text</h4>
+                </div>
+                <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '12px' }}>
+                  Paste your existing pitch deck slides, notes, or venture summaries.
                 </p>
-                <button className="btn-primary" onClick={loadScoutEdge}>
-                  Launch ScoutEdge Demo 🚀
-                </button>
+                
+                <input 
+                  type="text" 
+                  placeholder="Venture Name (e.g. AgroPulse)" 
+                  value={pastedVentureName}
+                  onChange={(e) => setPastedVentureName(e.target.value)}
+                  style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid var(--border-card)', background: 'var(--bg-card)', color: 'var(--text)', marginBottom: '12px', boxSizing: 'border-box' }}
+                />
+                
+                <textarea
+                  placeholder="Paste your existing pitch, company overview, notes, or venture information here..."
+                  value={pastedText}
+                  onChange={(e) => setPastedText(e.target.value)}
+                  style={{ width: '100%', height: '120px', padding: '10px', borderRadius: '6px', border: '1px solid var(--border-card)', background: 'var(--bg-card)', color: 'var(--text)', fontFamily: 'inherit', fontSize: '0.85rem', resize: 'vertical', marginBottom: '12px', boxSizing: 'border-box' }}
+                />
               </div>
+              
+              <button 
+                className="btn-primary" 
+                onClick={handlePasteSubmit}
+                disabled={!pastedText.trim()}
+                style={{ width: '100%' }}
+              >
+                Understand My Venture →
+              </button>
+            </div>
+          </div>
 
-              <div className="slide-card" style={{ padding: '20px' }}>
-                <h4>Option B: Start from Scratch</h4>
-                <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', margin: '6px 0 12px 0' }}>
-                  Create a custom profile manually and let the AI extract templates.
-                </p>
-                <button className="btn-primary" style={{ background: 'transparent', border: '1px solid var(--primary)', color: 'var(--primary)' }} onClick={handleStartFromScratch}>
-                  Start Blank Profile ✏️
-                </button>
-              </div>
+          {/* Bottom Shortcuts / Secondary Options */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px', marginTop: '24px', paddingTop: '16px', borderTop: '1px solid var(--border-card)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Shortcut testing options:</span>
+              <button className="btn-primary" style={{ padding: '6px 12px', fontSize: '0.8rem' }} onClick={loadScoutEdge}>
+                Use ScoutEdge Demo 🚀
+              </button>
+              <button className="btn-primary" style={{ padding: '6px 12px', fontSize: '0.8rem', background: 'transparent', border: '1px solid var(--primary)', color: 'var(--primary)' }} onClick={handleStartFromScratch}>
+                Start Blank Profile ✏️
+              </button>
             </div>
           </div>
 

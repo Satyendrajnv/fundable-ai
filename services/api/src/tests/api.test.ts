@@ -184,7 +184,8 @@ describe('Fundable AI API Shell & Endpoint Validation Suite', () => {
         fileType: 'txt'
       });
       assert.strictEqual(docRes.status, 201);
-      assert.strictEqual(docRes.body.document.fileName, 'AgroPulse_Spec.txt');
+      assert.strictEqual(docRes.body.fileName, 'AgroPulse_Spec.txt');
+      assert.strictEqual(docRes.body.ingestionStatus, 'SUCCESS');
     });
 
     test('2. Extract intelligence and assert strict grounding without ScoutEdge leakage', async () => {
@@ -258,6 +259,106 @@ describe('Fundable AI API Shell & Endpoint Validation Suite', () => {
       
       // Assert target slide (Slide 6) is mutated
       assert.ok(updatedDeck.slides[5].headline.includes('Refined & Grounded'), 'Target slide 6 must be mutated');
+    });
+  });
+
+  describe('Ingestion Validation & Multi-User Isolation Tests', () => {
+    test('TEST A & B: TXT upload and pasted text equivalent caching', async () => {
+      const startupId = 'startup-caching-test';
+      
+      // Upload text content (Option A/B)
+      const docRes = await executeRequest('POST', `/api/documents/${startupId}`, {
+        fileName: 'AgroPulse_Input.txt',
+        fileContent: 'AgroPulse provides sensor-driven irrigation recommendations to small farms.',
+        fileType: 'txt'
+      });
+      assert.strictEqual(docRes.status, 201);
+      assert.strictEqual(docRes.body.ingestionStatus, 'SUCCESS');
+      assert.strictEqual(docRes.body.characterCount, 75);
+      assert.ok(docRes.body.documentId);
+      
+      // Check that it's cached in the session store
+      const { sessionStore } = await import('../services/session-store.js');
+      const content = sessionStore.getDocumentContent(startupId, docRes.body.documentId);
+      assert.strictEqual(content, 'AgroPulse provides sensor-driven irrigation recommendations to small farms.');
+    });
+
+    test('TEST C: Reject empty or missing content with 400 Bad Request', async () => {
+      const docRes = await executeRequest('POST', '/api/documents/empty-test', {
+        fileName: 'Empty_File.txt',
+        fileContent: '   ', // whitespace only
+        fileType: 'txt'
+      });
+      assert.strictEqual(docRes.status, 400);
+      assert.strictEqual(docRes.body.error, 'Document content cannot be empty.');
+    });
+
+    test('TEST D: Extraction grounding asserts no ScoutEdge leakage', async () => {
+      const startupId = 'agropulse-clean-grounding';
+      
+      await executeRequest('POST', `/api/documents/${startupId}`, {
+        fileName: 'AgroPulse.txt',
+        fileContent: 'Startup: AgroPulse. Problem: Small farms waste water because irrigation decisions are based on fixed schedules. Solution: Low-cost sensor-driven irrigation recommendations. Traction: 127 paying farms.',
+        fileType: 'txt'
+      });
+
+      const extRes = await executeRequest('POST', `/api/intelligence/${startupId}/extract`, {
+        name: 'AgroPulse',
+        tagline: 'Sensor-driven irrigation'
+      });
+      
+      assert.strictEqual(extRes.status, 200);
+      const intel = extRes.body.intelligence;
+      
+      // Assert AgroPulse specific content is found
+      assert.ok(intel.entities.problem.statement.includes('waste water'));
+      assert.ok(intel.entities.solution.statement.includes('sensor-driven'));
+      assert.ok(intel.entities.traction.statement.includes('127 paying farms'));
+      
+      // Assert no ScoutEdge or default SaaS details leaked
+      const strIntel = JSON.stringify(intel);
+      assert.ok(!strIntel.includes('ScoutEdge'), 'Contamination: ScoutEdge found in clean AgroPulse extract');
+      assert.ok(!strIntel.includes('Serverless multi-stage'), 'Contamination: default SaaS found in solution');
+    });
+
+    test('TEST E: Multi-user session evidence isolation', async () => {
+      const startupA = 'startup-a-irrigation';
+      const startupB = 'startup-b-solar';
+
+      // Upload different content for A
+      await executeRequest('POST', `/api/documents/${startupA}`, {
+        fileName: 'A.txt',
+        fileContent: 'Startup A is called AgroPulse. We do water irrigation sensors for farms.',
+        fileType: 'txt'
+      });
+
+      // Upload different content for B
+      await executeRequest('POST', `/api/documents/${startupB}`, {
+        fileName: 'B.txt',
+        fileContent: 'Startup B is called Heliotech. We do micro-grid solar collectors for warehouses.',
+        fileType: 'txt'
+      });
+
+      // Extract A
+      const extA = await executeRequest('POST', `/api/intelligence/${startupA}/extract`, {
+        name: 'AgroPulse',
+        tagline: 'Water irrigation'
+      });
+
+      // Extract B
+      const extB = await executeRequest('POST', `/api/intelligence/${startupB}/extract`, {
+        name: 'Heliotech',
+        tagline: 'Solar collectors'
+      });
+
+      // Assert isolation
+      assert.ok(extA.body.intelligence.entities.problem.statement.includes('irrigation') || extA.body.intelligence.entities.solution.statement.includes('irrigation'));
+      assert.ok(!JSON.stringify(extA.body.intelligence).includes('Heliotech'), 'Leakage: A contains B info');
+      assert.ok(!JSON.stringify(extA.body.intelligence).includes('solar'), 'Leakage: A contains B keywords');
+
+      assert.ok(extB.body.intelligence.entities.problem.statement.includes('solar') || extB.body.intelligence.entities.solution.statement.includes('solar'));
+      assert.ok(!JSON.stringify(extB.body.intelligence).includes('AgroPulse'), 'Leakage: B contains A info');
+      assert.ok(!JSON.stringify(extB.body.intelligence).includes('irrigation'), 'Leakage: B contains A keywords');
     });
   });
 });

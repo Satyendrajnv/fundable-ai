@@ -53,17 +53,25 @@ documentsRouter.get('/:startupId', (req: Request, res: Response) => {
 
 // POST /api/documents/:startupId — Register & upload document
 documentsRouter.post('/:startupId', async (req: Request, res: Response) => {
+  const startupId = req.params.startupId;
   const fileName = req.body.fileName || 'uploaded_doc.pdf';
-  const fileContent = req.body.fileContent || 'Sample document content for evidence parsing';
+  const fileContent = req.body.fileContent;
   const fileType = req.body.fileType || 'pdf';
-  const gcsPath = `gs://${BUCKET_NAME}/${req.params.startupId}/${fileName}`;
 
+  // 1. Enforce validation on content
+  if (!fileContent || typeof fileContent !== 'string' || fileContent.trim().length === 0) {
+    return res.status(400).json({ error: 'Document content cannot be empty.' });
+  }
+
+  const gcsPath = `gs://${BUCKET_NAME}/${startupId}/${fileName}`;
+
+  // 2. Upload to Cloud Storage if available
   let storageStatus = 'MEMORY_ONLY';
   const gcs = getStorageInstance();
   if (gcs) {
     try {
       const bucket = gcs.bucket(BUCKET_NAME);
-      const file = bucket.file(`${req.params.startupId}/${fileName}`);
+      const file = bucket.file(`${startupId}/${fileName}`);
       await file.save(fileContent, { contentType: 'text/plain' });
       storageStatus = 'GCS_LIVE';
     } catch (err: any) {
@@ -73,7 +81,7 @@ documentsRouter.post('/:startupId', async (req: Request, res: Response) => {
 
   const payload = {
     evidenceId: `doc_${Date.now()}`,
-    startupId: req.params.startupId,
+    startupId,
     fileName,
     fileType,
     gcsPath,
@@ -91,13 +99,36 @@ documentsRouter.post('/:startupId', async (req: Request, res: Response) => {
     });
   }
 
-  const currentDocs = documentsStore.get(req.params.startupId) || [];
+  const currentDocs = documentsStore.get(startupId) || [];
   currentDocs.push(parseResult.data);
-  documentsStore.set(req.params.startupId, currentDocs);
+  documentsStore.set(startupId, currentDocs);
 
-  // Sync with shared session store
+  // 3. Sync and ensure startup session exists in sessionStore
   const { sessionStore } = await import('../services/session-store.js');
-  sessionStore.addDocument(req.params.startupId, parseResult.data, fileContent);
+  let profile = sessionStore.getStartupProfile(startupId);
+  if (!profile) {
+    profile = {
+      startupId,
+      name: fileName.split('.')[0].slice(0, 30),
+      tagline: 'Extracted from uploaded venture materials',
+      founderId: 'usr_custom_123',
+      stage: 'Seed',
+      targetRaise: 1000000,
+      currency: 'USD',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+    sessionStore.setStartupProfile(startupId, profile);
+  }
+  
+  sessionStore.addDocument(startupId, parseResult.data, fileContent);
 
-  res.status(201).json({ document: parseResult.data, storageStatus });
+  // 4. Return correct JSON structure (no raw text)
+  res.status(201).json({
+    documentId: parseResult.data.evidenceId,
+    fileName: parseResult.data.fileName,
+    characterCount: fileContent.length,
+    ingestionStatus: 'SUCCESS',
+    storageStatus
+  });
 });
