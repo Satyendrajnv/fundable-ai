@@ -264,6 +264,13 @@ Return the refined StartupEntity structure as valid JSON matching this exact str
           current.statement = `${current.statement} (Clarification: ${ans.answer})`;
         } else if (targetVector === 'financials') {
           current.groundingEvidenceIds = [...(current.groundingEvidenceIds || []), 'founder_qa'];
+          
+          // If the financials answer also mentions fundraising details, update fundraising vector ask field
+          if (ans.answer.toLowerCase().includes('raising') || ans.answer.toLowerCase().includes('targeting') || ans.answer.toLowerCase().includes('crore') || ans.answer.toLowerCase().includes('ask')) {
+            if (refinedEntities.fundraising) {
+              refinedEntities.fundraising.ask = `Raising ${ans.answer}`;
+            }
+          }
         } else if (targetVector === 'fundraising') {
           current.ask = `${current.ask} (Refined: ${ans.answer})`;
         }
