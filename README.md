@@ -1,104 +1,412 @@
-# ⚡ Fundable AI
+# Fundable AI
 
-> Cloud-native AI Pitch Intelligence Platform — AIM Code Kitchen Season 01, Google Cloud
+### From raw venture evidence to investment-grade narrative.
+**An evidence-first AI Pitch Intelligence Platform engineered on Google Cloud.**
 
-Fundable AI transforms fragmented startup information into evidence-grounded, investment-ready pitch presentations using multi-stage AI reasoning on Google Cloud.
+Fundable AI transforms fragmented startup information — decks, documents, founder notes, traction, financials, and venture context — into structured intelligence and then into a coherent, investor-ready pitch. But Fundable AI doesn't start by writing slides. **It starts by understanding the venture.**
 
-## Problem
-Founders struggle to create investor presentations that accurately represent their business while meeting the expectations of venture capitalists. The process is often fragmented, time-consuming, and lacks a coherent narrative backed by hard evidence.
+---
 
-## Solution
-Fundable AI provides an evidence-grounded AI pitch intelligence platform. By ingesting raw startup documents, our multi-stage AI pipeline extracts critical business vectors and generates a cohesive, evaluated, and precisely structured 10-slide pitch presentation.
+<p align="center">
+  **EVIDENCE → INTELLIGENCE → QUESTIONS → REFINEMENT → SYNTHESIS → EVALUATION**
+</p>
+
+---
+
+## The Idea
+Most AI pitch builders follow a familiar pattern:
+```text
+Prompt → LLM → Slides
+```
+Fundable AI takes a different approach.
+
+```text
+┌─────────────────────────────────────┐
+│          VENTURE EVIDENCE           │
+│    Decks · Docs · Data · Notes      │
+└──────────────────┬──────────────────┘
+                   ↓
+┌─────────────────────────────────────┐
+│         INTELLIGENCE LAYER          │
+│         10 Venture Vectors          │
+└──────────────────┬──────────────────┘
+                   ↓
+┌─────────────────────────────────────┐
+│            GAP DISCOVERY            │
+│         What don't we know?         │
+└──────────────────┬──────────────────┘
+                   ↓
+┌─────────────────────────────────────┐
+│             FOUNDER Q&A             │
+│       Targeted clarification        │
+└──────────────────┬──────────────────┘
+                   ↓
+┌─────────────────────────────────────┐
+│        REFINED INTELLIGENCE         │
+└──────────────────┬──────────────────┘
+                   ↓
+┌─────────────────────────────────────┐
+│           PITCH SYNTHESIS           │
+│              10 slides              │
+└──────────────────┬──────────────────┘
+                   ↓
+┌─────────────────────────────────────┐
+│            QUALITY GATE             │
+│    Completeness · Consistency       │
+│       Grounding · Readiness         │
+└──────────────────┬──────────────────┘
+                   ↓
+┌─────────────────────────────────────┐
+│        SURGICAL REGENERATION        │
+└──────────────────┬──────────────────┘
+                   ↓
+┌─────────────────────────────────────┐
+│         INVESTOR NARRATIVE          │
+└─────────────────────────────────────┘
+```
+
+Generation isn't the finish line. It is an intermediate state that has to earn its way through the quality gate.
+
+### Why Fundable AI?
+A pitch deck can look impressive and still be wrong. The fundamental problem isn't always writing. It is understanding. Fundable AI treats a startup as a structured intelligence problem before treating it as a presentation problem.
+
+The system progressively moves from:
+**Evidence → Understanding → Missing Information → Refinement → Narrative → Evaluation**
+
+This creates a more disciplined generation loop:
+```text
+Source Evidence ↓ Structured Intelligence ↓ Generated Narrative ↓ Evaluation ↓ Targeted Improvement
+```
+The objective is not simply to produce more content. The objective is to produce better-supported content.
+
+---
+
+## The 10-Vector Venture Model
+Fundable AI converts unstructured venture information into a structured intelligence representation:
+
+| Vector | Intelligence Question |
+|---|---|
+| **Problem** | What fundamental problem exists? |
+| **ICP** | Who experiences it? |
+| **Value Proposition** | Why does the solution matter? |
+| **Product** | What is actually being built? |
+| **Business Model** | How does the venture create revenue? |
+| **GTM** | How does it reach customers? |
+| **Traction** | What evidence of demand exists? |
+| **Competition** | What alternatives already exist? |
+| **Financials** | What are the economics? |
+| **Fundraising** | What capital is being raised and why? |
+
+This model becomes the foundation for every downstream operation.
+
+---
+
+## The Intelligence Loop
+
+### 01 — Ingest
+Bring the venture's evidence into the system. 
+* **Supported inputs**: PDF, TXT, Markdown, and Direct founder-provided text.
+* Input is validated before it enters the intelligence pipeline.
+
+### 02 — Understand
+Gemini transforms raw venture evidence into structured intelligence. The objective isn't to generate impressive prose. It is to answer: *What does the evidence actually tell us?*
+
+### 03 — Discover the Gaps
+Incomplete or ambiguous areas are surfaced before the pitch is generated. Instead of forcing the model to guess, Fundable AI asks targeted questions. *If the system doesn't know, it should ask.*
+
+### 04 — Refine
+Founder answers are merged back into the structured intelligence layer. The venture model becomes progressively more complete. This creates a feedback loop between:
+```text
+Machine Understanding ↕ Founder Knowledge
+```
+
+### 05 — Synthesize
+The refined intelligence is transformed into a strict 10-slide pitch contract. The deck is generated from the structured venture model rather than from an unconstrained prompt.
+
+### 06 — Evaluate
+Every generated pitch passes through a four-dimensional quality gate:
+* **Completeness**: Is the required venture information present?
+* **Consistency**: Does the narrative remain internally coherent?
+* **Grounding**: Are claims supported by the available evidence?
+* **Investor Readiness**: Does the resulting narrative meet the expected standard for an investor-facing pitch?
+
+The system doesn't simply ask: *"Does this sound good?"* It asks: *"Is this sufficiently supported, coherent, complete, and ready to present?"*
+
+### 07 — Regenerate
+When a slide underperforms, Fundable AI performs targeted regeneration.
+```text
+Weak Slide ↓ Identify Defect ↓ Regenerate Target ↓ Preserve Remaining Deck
+```
+The objective is surgical rather than destructive. Why regenerate an entire deck when one component needs improvement?
+
+---
 
 ## Architecture
-```mermaid
-flowchart TD
-    Web[React Web Studio] -->|HTTP REST| API[Cloud Run API]
-    API -->|Read/Write| DB[(Firestore)]
-    API -->|Read/Write| Storage[(Cloud Storage)]
-    API -->|AI Requests| Gemini[Gemini API]
-    API -->|Generate| PDF[PDFKit Export]
+Fundable AI is designed as a cloud-native, serverless Google Cloud application.
+
+```text
+┌──────────────────────────────────────────────┐
+│                  WEB STUDIO                  │
+│              React / TypeScript              │
+└───────────────────────┬──────────────────────┘
+                        │
+                        ▼
+┌──────────────────────────────────────────────┐
+│                  API LAYER                   │
+│              Node.js / Express               │
+└───────────────┬────────────────┬─────────────┘
+                │                │
+                ▼                ▼
+        ┌────────────────┐ ┌────────────────┐
+        │   Firestore    │ │ Cloud Storage  │
+        │  Structured    │ │   Venture      │
+        │  Application   │ │  Evidence &    │
+        │    State       │ │  Artifacts     │
+        └────────────────┘ └───────┬────────┘
+                                   │
+                                   ▼
+                          ┌──────────────────┐
+                          │   AI PIPELINE    │
+                          │ Gemini / Vertex  │
+                          └────────┬─────────┘
+                                   │
+         ┌─────────────────────────┼─────────────────────────┐
+         ▼                         ▼                         ▼
+    Extraction               Gap Discovery               Synthesis
+         │                         │                         │
+         └─────────────────────────┼─────────────────────────┘
+                                   ▼
+                             ┌─────────────┐
+                             │Quality Gate │
+                             └──────┬──────┘
+                                    ▼
+                          Targeted Regeneration
+                                    │
+                                    ▼
+                              Pitch Artifact
 ```
 
-## AI Pipeline
-The AI generation process follows 7 discrete stages:
-1. **Evidence Ingestion** (Cloud Storage / Memory Cache)
-2. **Startup Intelligence Extraction** (Gemini → 10 business vectors)
-3. **Founder Q&A Gap Resolution** (Gemini identifies gaps, founder provides answers to refine intelligence)
-4. **Grounded Pitch Generation** (Gemini → exactly 10 slides grounded in refined intelligence)
-5. **Quality Evaluation** (4-vector scoring engine)
-6. **Targeted Regeneration** (surgical slide refinement via Gemini)
-7. **Export** (binary PDF)
+### Google Cloud Architecture
+The intended cloud architecture uses:
+* **Cloud Run** — serverless application and API execution
+* **Firestore** — structured application state
+* **Cloud Storage** — venture evidence and generated artifacts
+* **Vertex AI / Gemini** — intelligence, reasoning, and generation
+* **Pub/Sub / Cloud Tasks** — asynchronous orchestration
+* **Cloud Monitoring** — operational visibility
+* **Cloud Logging** — application and infrastructure logs
+* **Error Reporting** — failure visibility
 
-## Google Cloud Services
-| Service | Purpose | Status |
-|---|---|---|
-| Cloud Run | Serverless API hosting | ✅ Live |
-| Firestore | Startup profile persistence | ✅ Live |
-| Cloud Storage | Evidence document storage | ✅ Live |
-| Gemini (via @google/genai) | Multi-stage AI reasoning | ✅ Live |
-| Cloud Logging | Request/error logging (via stdout) | ✅ Automatic |
+### Architecture Principle
+The system separates:
+```text
+Evidence ↓ Intelligence ↓ Generation ↓ Evaluation
+```
+rather than collapsing everything into a single LLM request.
 
-## Key Engineering Decisions
-- **Zod schemas enforce exactly 10 slides**: Ensures structural consistency for AI-generated output.
-- **Provider abstraction**: A common `GeminiProvider` interface supports both Vertex AI and a direct API key mode for environment flexibility.
-- **Deterministic fallbacks**: Robust error handling ensures the application remains functional even during temporary sandbox constraints.
-- **4-dimensional evaluation**: Guarantees pitch quality by assessing multiple facets rather than relying on a single generic score.
+---
 
-## Evaluation Engine
-The quality of generated pitches is evaluated across 4 vectors:
-- **Completeness**: Does the pitch cover all necessary aspects of the startup?
-- **Factual Consistency**: Are the claims logically sound and internally consistent?
-- **Evidence Grounding**: Is the narrative supported by the ingested evidence documents?
-- **Investor Readiness**: Does the tone and content align with venture capital expectations?
+## Evidence-First by Design
+Fundable AI treats grounding as a first-class system property. The pipeline is intentionally designed around the relationship:
+```text
+SOURCE ↓ UNDERSTANDING ↓ NARRATIVE ↓ EVALUATION
+```
 
-## Security
-- No secrets are stored in the source code.
-- Environment variables (`.env`) are used for all credentials.
-- `.gitignore` prevents accidental commits of `.env` and `service-account*.json` files.
-- Production relies on Cloud Run IAM for secure service-to-service communication.
+During validation, the system was tested for:
+* unsupported claims
+* cross-session contamination
+* venture context leakage
+* fabricated fallback content
+* irrelevant template information
 
-## Local Development
+The goal is straightforward: **A venture should be represented by its evidence — not by whatever the model happens to assume.**
+
+---
+
+## End-to-End Venture Journey
+The system has been validated using AgroPulse, an independent venture scenario:
+```text
+Raw Venture Evidence ↓ Evidence Ingestion ↓ Startup Profile ↓ 10-Vector Extraction ↓ Missing Information Discovery ↓ Founder Q&A ↓ Intelligence Refinement ↓ 10-Slide Synthesis ↓ 4-Dimensional Evaluation ↓ Targeted Slide Regeneration ↓ 10-Page PDF
+```
+
+### Evaluation Snapshot
+* **Completeness**: 100%
+* **Consistency**: 95%
+* **Grounding**: 88%
+* **Readiness**: 87%
+
+*These values represent demo evaluation output from the validation journey. They are not presented as universal quality guarantees.*
+
+### Grounding & Isolation Verification
+The AgroPulse journey was specifically used to verify that venture context remains isolated:
+* **AgroPulse Understanding**: `PASS`
+* **ScoutEdge Contamination**: `PASS`
+* **Cross-Session Leakage**: `PASS`
+* **Unsupported Claims**: `PASS`
+* **Fabricated Fallback**: `PASS`
+
+The system correctly identified AgroPulse's water-management problem and sensor-driven solution without importing unrelated ScoutEdge context. This matters because a multi-venture intelligence system must preserve context boundaries.
+
+---
+
+## Engineering Principles
+
+1. **Evidence over assumptions**: If the system doesn't know, it should ask.
+2. **Structure before generation**: Reason over structured venture intelligence before producing narrative.
+3. **Evaluation before delivery**: A generated artifact is not automatically a finished artifact.
+4. **Surgical over destructive**: Improve the weak component without unnecessarily rebuilding everything else.
+5. **Isolation by design**: One venture's context should never silently become another venture's context.
+6. **Visible failure over silent failure**: Network and ingestion failures should surface clearly rather than trapping users behind indefinite loading states.
+7. **Reproducibility over theatrics**: A system should be explainable, testable, and reproducible — not merely impressive in a demo.
+
+---
+
+## Current Capability Matrix
+
+| Capability | Status |
+|---|---|
+| React Web Studio | ✅ |
+| Venture text ingestion | ✅ |
+| PDF ingestion | ✅ |
+| TXT / Markdown ingestion | ✅ |
+| Structured venture intelligence | ✅ |
+| 10-vector extraction | ✅ |
+| Founder Q&A | ✅ |
+| Intelligence refinement | ✅ |
+| 10-slide pitch contract | ✅ |
+| Four-dimensional evaluation | ✅ |
+| Targeted regeneration | ✅ |
+| PDF generation | ✅ |
+| Multi-session isolation | ✅ |
+| Local E2E workflow | ✅ |
+| Automated integration tests | ✅ |
+| Cloud-native architecture | ✅ |
+| Competition Cloud Run deployment | ⏸️ Sandbox expired |
+
+---
+
+## Validation
+Latest repository validation:
+* **Build**: `PASS`
+* **Integration Tests**: `24 / 24`
+* **Browser / E2E**: `PASS`
+* **PDF Generation**: `PASS`
+* **Grounding Tests**: `PASS`
+* **Isolation Tests**: `PASS`
+* **Secret Audit**: `PASS`
+* **Git Status**: `CLEAN`
+
+### Repository State
+* **Branch**: `main`
+* **Commit**: `7ef6a5c`
+* **Remote**: `origin/main`
+* **Status**: `Clean`
+
+*No credentials or API keys are committed to the repository.*
+
+---
+
+## Repository Structure
+```text
+fundable-ai/
+├── apps/
+│   └── web/            # React / TypeScript Web Studio
+├── services/
+│   └── api/            # API + intelligence pipeline
+├── packages/
+│   └── core-types/     # Shared TS schemas and contracts
+├── ARCHITECTURE.md     # System architecture
+├── DEMO_RUNBOOK.md     # End-to-End demo flow runbook
+├── walkthrough.md      # Build / verification walkthrough
+├── README.md           # Product & setup overview
+└── package.json        # Workspace configuration
+```
+
+---
+
+## Run Locally
+
+### Requirements
+* Node.js
+* npm
+* Git
+
+### Install
 ```bash
 npm install
-npm run build
-npm test
-npm run dev --workspace=services/api
 ```
 
-## API Endpoints
-| Method | Path | Description |
-|---|---|---|
-| GET | `/api/startups` | List startup profiles |
-| POST | `/api/startups` | Create a new startup profile |
-| GET | `/api/startups/:id` | Get startup profile |
-| POST | `/api/documents/:startupId` | Upload evidence document (PDF, TXT, MD) |
-| POST | `/api/intelligence/:startupId/extract` | Extract 10 intelligence vectors |
-| POST | `/api/intelligence/:startupId/questions` | Generate gaps-based interview questions |
-| POST | `/api/intelligence/:startupId/answers` | Submit answers and refine intelligence |
-| GET | `/api/pitches/:startupId` | Retrieve 10-slide deck |
-| POST | `/api/pitches/:startupId/generate` | Generate pitch deck |
-| GET | `/api/evaluations/:deckId` | Run 4-vector evaluation |
-| POST | `/api/evaluations/:deckId/regenerate-slide` | Targeted slide regeneration |
-| GET | `/api/exports/:deckId/pdf/download` | Download binary PDF |
+### Development
+```bash
+npm run dev
+```
 
-## Demo Flow
-The 7-step wizard user journey:
-1. **Ingestion**: Upload a venture deck or paste venture text (e.g. AgroPulse).
-2. **Venture Intelligence**: Extract 10 business vectors from the source text.
-3. **Founder Q&A**: Gemini identifies gaps and asks structured questions; answers refine the context.
-4. **Grounded Synthesis**: Synthesize exactly 10 Zod-enforced slides.
-5. **Quality Gate**: Evaluate the deck across 4 key quality dimensions.
-6. **Targeted Regen**: Surgically regenerate Slide 6/9 while preserving the other slides.
-7. **Export**: Export the pitch to a binary PDF presentation.
+### Production Build
+```bash
+npm run build
+```
 
-## Known Sandbox Constraints
-For the purposes of the Code Kitchen sandbox environment:
-- Vertex AI publisher models may be unavailable in Qwiklabs; an API key fallback mode is active.
-- Google Slides API integration is not connected in the sandbox.
-- RAG/Vector Search is architected but not currently deployed in this environment.
-- Firebase Authentication is not implemented (API endpoints are unauthenticated to ensure demo accessibility).
-- Pub/Sub and Cloud Tasks, which are intended for production scaling, are not implemented in this MVP.
+### Test
+```bash
+npm test
+```
 
-## Tech Stack
-Node.js, TypeScript, Express, React, Vite, Zod, PDFKit, @google/genai, @google-cloud/firestore, @google-cloud/storage
+*Environment configuration is handled separately. No credentials are committed to the repository.*
+
+---
+
+## Cloud Run Status
+The competition sandbox was used for the intended Google Cloud deployment environment. The official sandbox credentials expired before final deployment verification could be completed. The application therefore makes a deliberate distinction between:
+**Implemented & Locally Verified** vs. **Competition Infrastructure Not Re-verified after Sandbox Expiration**
+
+The codebase and deployment architecture remain structured for Google Cloud execution. No personal cloud deployment was substituted for the official competition environment.
+
+---
+
+## What's Next
+The current build establishes the core Pitch Intelligence Loop. The longer-term direction is broader:
+```text
+Pitch Intelligence ↓ Investor Readiness ↓ Fundraising Intelligence ↓ Accelerator Infrastructure ↓ Founder Decision Intelligence
+```
+
+Potential future extensions include:
+* richer retrieval infrastructure
+* reference-deck intelligence
+* investor-specific narrative optimization
+* collaborative pitch editing
+* Google Slides export
+* accelerator / CRM integrations
+* longitudinal founder intelligence
+* portfolio-level analytics
+
+*These are future extensions, not claims about the current competition build.*
+
+---
+
+## Built for Code Kitchen S01
+Fundable AI was created for Code Kitchen Season 01. The challenge was simple: *Turn a concept into a functioning system.*
+
+The approach was equally simple: *Build the intelligence layer first. Then let the pitch emerge from it.*
+
+### The Thesis
+> A better pitch shouldn't begin with better words. It should begin with better understanding.
+
+Fundable AI is an experiment in turning that understanding into software.
+
+---
+
+## About
+
+### Satyendra Kumar
+*Founder · Builder · Data Scientist · Cricketer*
+
+Building systems at the intersection of: **Artificial Intelligence · Data · Sport · Decision Intelligence**
+
+Founder & CEO of [ScoutEdge](https://scoutedge.in/), building Sports Intelligence Infrastructure for athlete discovery, evaluation, development, and recruitment.
+
+### Connect
+* **GitHub**: [@Satyendrajnv](https://github.com/Satyendrajnv)
+* **LinkedIn**: [Satyendra Kumar](https://www.linkedin.com/in/satyendra-scoutedge/)
+
+---
+**Fundable AI** — *Evidence → Intelligence → Decisions*
